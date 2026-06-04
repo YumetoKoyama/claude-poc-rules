@@ -1,0 +1,4 @@
+.skills-state/
+.env
+*.env
+build.log
