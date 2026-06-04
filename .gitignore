@@ -2,3 +2,10 @@
 .env
 *.env
 build.log
+
+# 子リポジトリ（親直下に素クローン。embedded repo 防止のため ignore）
+/claude-poc-docs/
+/claude-poc-frontend/
+/claude-poc-backend/
+/claude-poc-batch/
+/claude-poc-e2e/
