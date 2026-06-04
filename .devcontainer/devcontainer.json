@@ -1,0 +1,83 @@
+{
+  // VS Code / Cursor / IntelliJ などから読み込まれる Dev Container 定義。
+  //
+  // この定義は docker-compose.yml と組み合わせて、Dev Container として
+  // 「app + db」の 2 コンテナを 1 つの開発環境として扱えるようにする。
+  //
+  // ポイント:
+  //   - service: app に対して開発者がアタッチする
+  //   - workspaceFolder は compose 側の bind-mount と揃える (/workspace)
+  //   - postCreateCommand で初期化スクリプトを 1 度だけ実行
+  //   - Claude Code はコンテナ内で動かす想定なので、ホストの ~/.claude は持ち込まない
+
+  "name": "claude-poc (JDK 21 + Node 20 + Claude Code)",
+
+  "dockerComposeFile": ["docker-compose.yml"],
+  "service": "app",
+  "workspaceFolder": "/workspace",
+
+  // compose 側で "sleep infinity" を CMD にしているため、Dev Container 側からは
+  // overrideCommand を false にして CMD をそのまま尊重する。
+  "overrideCommand": false,
+
+  // VS Code が exec する際のユーザー。コンテナのエントリポイントは root で起動するが
+  // (init-firewall.sh が iptables を設定するため)、その後 gosu で vscode に降格する。
+  // VS Code はこの remoteUser を使って docker exec --user vscode する。
+  //
+  // containerUser はあえて指定しない: compose の `user: "0:0"` を尊重させ、
+  // entrypoint の init-firewall.sh が root として走れるようにするため。
+  "remoteUser": "vscode",
+  "updateRemoteUserUID": true,
+
+  // コンテナ環境変数 (docker-compose.yml の environment と併用される)。
+  // CLAUDE_CONFIG_DIR を明示することで、Claude Code が XDG_CONFIG_HOME 等の
+  // 別ロケーションを参照する余地をなくし、必ず named volume 上の
+  // /home/vscode/.claude を使うようにする。これにより、コンテナを再作成しても
+  // OAuth 認証 (Max / Pro プランのログイン) が失われない。
+  "containerEnv": {
+    "CLAUDE_CONFIG_DIR": "/home/vscode/.claude"
+  },
+
+  // 起動時に shutdown する対象。リポジトリを閉じたら db ごと止める。
+  "shutdownAction": "stopCompose",
+
+  // 初回作成時のみ実行 (依存インストール、git safe.directory など)
+  "postCreateCommand": "bash .devcontainer/postCreate.sh",
+
+  // ホスト→コンテナのポート転送。compose 側の ports と重複していても害はない。
+  "forwardPorts": [8080, 5173, 6006, 5432],
+  "portsAttributes": {
+    "8080": { "label": "Spring Boot", "onAutoForward": "notify" },
+    "5173": { "label": "Vite (React)", "onAutoForward": "openPreview" },
+    "6006": { "label": "Storybook", "onAutoForward": "silent" },
+    "5432": { "label": "PostgreSQL", "onAutoForward": "silent" }
+  },
+
+  // VS Code 拡張など、IDE 側の挙動はここで完結させる
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "java.jdt.ls.java.home": "/usr/lib/jvm/msopenjdk-current",
+        "java.configuration.runtimes": [
+          {
+            "name": "JavaSE-21",
+            "path": "/usr/lib/jvm/msopenjdk-current",
+            "default": true
+          }
+        ],
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "files.eol": "\n"
+      },
+      "extensions": [
+        "vscjava.vscode-java-pack",
+        "vmware.vscode-boot-dev-pack",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  },
+
+  // 開発時に必要な OS パッケージは Dockerfile に集約しているので features は最小限。
+  "features": {}
+}

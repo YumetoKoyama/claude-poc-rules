@@ -1,0 +1,120 @@
+# AI 駆動開発用 docker compose。
+#
+# 設計方針:
+#   - app: Claude Code / Spring Boot / React を動かす開発用コンテナ（Playwright は未導入）
+#   - db : Spring Boot から接続する PostgreSQL 16
+#   - app コンテナは非 root (vscode) で動かし、source code は /workspace に bind-mount する
+#   - DB データは named volume に置き、コンテナ再生成しても残るようにする
+#   - 外側ネットワークは bridge のみ。host network には乗せない (隔離維持)
+#   - Docker socket は app に渡さない (DinD 不要 / コンテナエスケープ防止)
+
+name: claude-poc
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: claude-poc-app
+    hostname: claude-poc-app
+    init: false  # init-firewall.sh が最終的に gosu vscode tini -- ... を exec する
+
+    # ★ 起動は root で行う。これは init-firewall.sh が iptables/ipset を構築する
+    #    ために必要 (NET_ADMIN を持っていても uid 1000 では iptables が叩けない)。
+    #    init-firewall.sh は構築完了後、gosu で vscode に降格して exec する。
+    user: "0:0"
+
+    # 入口は init-firewall.sh。許可ドメイン以外への egress を遮断してから、
+    # vscode ユーザーとして compose の command を起動する。
+    entrypoint: ["/workspace/.devcontainer/init-firewall.sh"]
+    command: ["sleep", "infinity"]
+
+    working_dir: /workspace
+
+    volumes:
+      # プロジェクトのソース。`..` は .devcontainer ディレクトリの親 (リポジトリルート)
+      - ../:/workspace:cached
+      # 依存キャッシュは named volume にして再ビルド・再起動を高速化
+      - claude-poc-m2:/home/vscode/.m2
+      - claude-poc-npm:/home/vscode/.npm
+      # Claude Code の認証情報・履歴をホスト OS から分離した状態で保持する
+      - claude-poc-claude-home:/home/vscode/.claude
+
+    environment:
+      # Spring Boot から db サービスへ接続するための既定値
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/appdb
+      SPRING_DATASOURCE_USERNAME: appuser
+      SPRING_DATASOURCE_PASSWORD: apppass
+      SPRING_PROFILES_ACTIVE: dev
+      # Claude Code に環境変数で渡したい値は .env から compose が読み取る。
+      # ANTHROPIC_API_KEY は Max / Pro プラン契約があれば不要 (OAuth ログイン)。
+      # 設定されていれば API キー認証、未設定なら OAuth が使われる。
+      GITHUB_PERSONAL_ACCESS_TOKEN: ${GITHUB_PERSONAL_ACCESS_TOKEN:-}
+      # gh CLI は GH_TOKEN (または GITHUB_TOKEN) を参照するため、同じ PAT をマッピングする。
+      # この PAT には repo + project (+ Organization 所有 Project なら read:org) スコープが必要。
+      GH_TOKEN: ${GITHUB_PERSONAL_ACCESS_TOKEN:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+
+    ports:
+      # Spring Boot
+      - "8080:8080"
+      # React (Vite 既定)
+      - "5173:5173"
+      # 必要に応じて Storybook 等を追加するときはここに足す
+      - "6006:6006"
+
+    depends_on:
+      db:
+        condition: service_healthy
+
+    # 安全側設定。AI が誤って privileged 化されたコンテナで何かしないように明示する。
+    cap_drop:
+      - ALL
+    cap_add:
+      # init-firewall.sh が iptables / ipset を操作するために必要
+      - NET_ADMIN
+      # コンテナ起動時に root から vscode に gosu で降格するための準備
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
+    # /tmp は in-memory にして、テスト時の I/O を高速化しつつホストに残さない
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=1g
+
+  db:
+    image: postgres:16-bookworm
+    container_name: claude-poc-db
+    hostname: db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: appdb
+      POSTGRES_USER: appuser
+      POSTGRES_PASSWORD: apppass
+      TZ: Asia/Tokyo
+    volumes:
+      - claude-poc-pgdata:/var/lib/postgresql/data
+    ports:
+      # ホストからも DB クライアントで直接覗けるようにポートだけは公開する
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U appuser -d appdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  claude-poc-pgdata:
+  claude-poc-m2:
+  claude-poc-npm:
+  claude-poc-claude-home:

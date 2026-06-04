@@ -1,0 +1,53 @@
+# Docker ビルドコンテキストに含めないものを列挙する。
+# build context が大きくなるとイメージビルドが遅くなり、機密も巻き込みやすくなる。
+
+# --- VCS / IDE / OS ノイズ ---------------------------------------------------
+.git
+.gitignore
+.gitattributes
+.idea
+.vscode
+.DS_Store
+
+# --- 機密ファイル -----------------------------------------------------------
+**/.env
+**/.env.*
+**/secrets
+**/*credentials*
+**/*credential.json
+**/id_rsa
+**/id_ed25519
+**/id_ecdsa
+**/id_dsa
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/*.jks
+**/*.keystore
+
+# --- ビルド成果物 (重い & イメージに不要) ------------------------------------
+**/target
+**/build
+**/out
+**/dist
+**/.mvn
+**/node_modules
+**/.next
+**/.nuxt
+**/.cache
+
+# --- テスト・カバレッジ成果物 -----------------------------------------------
+**/coverage
+**/test-results
+**/playwright-report
+**/.nyc_output
+
+# --- ログ・テンポラリ -------------------------------------------------------
+**/*.log
+**/.tmp
+**/tmp
+
+# --- Docker 自身の中間ファイル ----------------------------------------------
+**/Dockerfile.bak
+**/docker-compose.override.yml
