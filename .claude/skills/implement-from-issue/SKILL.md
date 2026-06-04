@@ -13,7 +13,7 @@ argument-hint: <ISSUE-NUMBER>
 ## 前提条件
 
 - GitHub Issue が「採択済み」状態（例: ラベル `status:ready` が付与されている）であること
-- 設計フェーズが採択済みであること（`.skills-state/design/approved.json` の `approved == true` を Read で確認。未採択なら中断）
+- 設計フェーズが採択済みであること（**採択＝docs リポジトリの `main` へのマージ**。Issue はマージ契機で採択済み設計書から自動起票されるため CI では自明。ローカルでは対象設計書が docs の `main` にマージ済みかを確認し、未マージなら中断）
 - `gh` CLI がインストール・認証済みであること（`GH_TOKEN` 環境変数。`gh auth status` で確認）
 - `git` が利用可能で、リモート `origin` が GitHub に設定済みであること
 - PAT は classic（`repo` + `project`、Organization 所有 Project なら `read:org`）。`GH_TOKEN` は docker-compose が `GITHUB_PERSONAL_ACCESS_TOKEN` からマッピング済み

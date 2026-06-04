@@ -14,7 +14,7 @@ argument-hint: [設計書のパス（省略時は docs/design/ 配下を全件�
 
 ## 前提条件
 
-- 要件定義書（`docs/requirements/`）と設計書（`docs/design/`）の両方が人手レビューで採択済みであること。**機械チェック**: `.skills-state/requirements/approved.json` と `.skills-state/design/approved.json` がともに存在し `approved == true` であることを Read で確認する。いずれかが未採択なら起票せず中断し、`bash .claude/skills/_common/scripts/approve-phase.sh <phase> <承認者名>` の実行を依頼する
+- 要件定義書（`docs/requirements/`）と設計書（`docs/design/`）の両方が人手レビューを経て docs リポジトリの `main` へマージ済みであること（**マージ＝採択**。branch protection で直 push 禁止が前提）。未マージなら起票せず中断し、人手レビュー・マージを依頼する
 - `gh` CLI がインストール・認証済みであること（`GH_TOKEN` 環境変数。`gh auth status` で確認）。Issue/PR/Project の操作は gh に一本化
 - PAT は classic（`repo` + `project`、Organization 所有 Project なら `read:org`）。`GH_TOKEN` は docker-compose が `GITHUB_PERSONAL_ACCESS_TOKEN` からマッピング済み
 - 対象リポジトリに `.github/ISSUE_TEMPLATE/` のテンプレート（screen / api / interface / table / bug）と必要なラベル（`type:screen` / `type:api` / `type:interface` / `type:table` / `type:bug`、`status:ready` 等）が用意されていること

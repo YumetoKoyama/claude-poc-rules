@@ -9,7 +9,7 @@ argument-hint: [要件定義ディレクトリのパス（省略時は docs/requ
 
 この skill の入力は **採択済みの要件定義書** です。要件定義書がない場合、または採択済みでない場合は中断し、先に `requirements-from-input` の実行とレビュー採択を依頼すること。
 
-> **採択ゲート（必須）**: 開始前に `.skills-state/requirements/approved.json` を Read し、`approved == true` であることを確認する。存在しない／false の場合は中断し、人手で `bash .claude/skills/_common/scripts/approve-phase.sh requirements <承認者名>` を実行して採択するよう依頼する。採択は AI の自己判断では行わない。
+> **採択ゲート（必須）**: 採択は「要件定義書の PR を人間がレビューし docs リポジトリの `main` へマージすること」で行う（branch protection で直 push 禁止が前提）。開始前に、入力の要件定義書（`docs/requirements/`）が `main` に存在することを確認する（CI は main 契機のため自明。ローカルでは `git log origin/main -- docs/requirements/` 等で確認し、未マージなら中断して人手レビュー・マージを依頼する）。採択は AI の自己判断では行わず、Claude 自身がマージして採択扱いにしてはならない。
 
 要件定義入力: $ARGUMENTS（省略時は `docs/requirements/` 配下を全件対象）
 
