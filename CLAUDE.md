@@ -81,20 +81,20 @@
 - **開発フローの正典**: 本ファイル（CLAUDE.md）。各フェーズの順序・成果物・ルールはここを最上位とする。
 - **設計根拠**: `docs/architecture/skill-orchestration.md`（skill 連鎖の設計思想・状態機械・採択ゲート・整合チェック）。
 - **運用手順の詳細**: `docs/process/`（レビュー基準・Issue 管理などの運用ガイド）。
-- **技術スタックの正典**: `rules/`（FE: `frontend-*.md` / BE: `backend-*.md`）。フレームワーク・ライブラリ・バージョンはここにのみ記載し、CLAUDE.md・設計書・スキルは再掲せず参照する。矛盾時は frontend ルールを最優先（正）とする。リポジトリ分割後は**各リポジトリの `rules/`（または `.claude/rules/`）** を正典とする（`docs/process/リポジトリ構成と移行計画.md`）。
-- **正典の保護（機械的強制）**: `rules/` 配下と CLAUDE.md は **Claude 実行中の編集を禁止**する（`.claude/hooks/protect-canon.sh` が PreToolUse で Edit/Write/MultiEdit/Bash 書き込みをブロック）。正典の変更は人手で行う。Claude に編集を手伝わせる場合のみ、`ALLOW_RULES_EDIT=1` を設定したセッションで実行する。スキルの自動実行はフラグを立てないため常にブロックされ、ルールを書き換えて品質ゲートを通すことはできない。
+- **技術スタックの正典**: 各子リポジトリの `.claude/rules/`（FE: `claude-poc-frontend/.claude/rules/frontend-*.md` / BE: `claude-poc-backend/.claude/rules/backend-*.md`）。フレームワーク・ライブラリ・バージョンはここにのみ記載し、CLAUDE.md・設計書・スキルは再掲せず参照する。矛盾時は frontend ルールを最優先（正）とする。親 `rules/` には横断 AI ルール（`rules/cross-cutting.md`）のみを置く（`docs/process/リポジトリ構成と移行計画.md`）。
+- **正典の保護（機械的強制）**: 親 `rules/` 配下・親 CLAUDE.md・各子リポジトリの `.claude/rules/` 配下は **Claude 実行中の編集を禁止**する（`.claude/hooks/protect-canon.sh` が PreToolUse で Edit/Write/MultiEdit/Bash 書き込みをブロック。パターン `(^|/)rules/` は子の `.claude/rules/` にも合致する）。正典の変更は人手で行う。Claude に編集を手伝わせる場合のみ、`ALLOW_RULES_EDIT=1` を設定したセッションで実行する。スキルの自動実行はフラグを立てないため常にブロックされ、ルールを書き換えて品質ゲートを通すことはできない。
 - Agent Teams（experimental の teammate 機能）は使用しない。並列実行は Pattern 2（Parallel Fan-Out）で代替する。
 
 ## 技術スタックの正典と確定ルール
 
 技術スタックは要件で**人間が指定する**。Claude は既定値で自動補完しない。未指定・未確定のまま設計・製造フェーズに進まない（**ハードゲート**）。
 
-- **確定したスタックの正典は `rules/` 配下に集約する**。CLAUDE.md・設計書（`docs/design/方式設計.md` 等）・スキルでは、フレームワーク名・ライブラリ名・バージョンを**再掲しない**。必要な箇所では `rules/` を参照する（二重管理の禁止）。
-  - フロントエンド: `rules/frontend-*.md`
-  - バックエンド: `rules/backend-*.md`（実装規約。ビルド / DB / テスト / 静的解析 / カバレッジ閾値などのスタック確定値も、人間がここに追記して確定する）
+- **確定したスタックの正典は対象子リポジトリの `.claude/rules/` に集約する**。CLAUDE.md・設計書（`docs/design/方式設計.md` 等）・スキルでは、フレームワーク名・ライブラリ名・バージョンを**再掲しない**。必要な箇所では各子の `.claude/rules/` を参照する（二重管理の禁止）。
+  - フロントエンド: `claude-poc-frontend/.claude/rules/frontend-*.md`
+  - バックエンド: `claude-poc-backend/.claude/rules/backend-*.md`（実装規約。ビルド / DB / テスト / 静的解析 / カバレッジ閾値などのスタック確定値も、人間がここに追記して確定する）
   - リポジトリ構成・E2E の所在などの横断決定: `docs/process/リポジトリ構成と移行計画.md` に記録する
-- **未指定時の挙動**: 採用技術が未確定のまま設計フェーズ（`design-from-requirements`）以降に進まない。`rules/` 上に「要確定」項目が残る間は中断し、人間に指定を求める。既定値による自動決定は禁止する。
-- **矛盾時の優先順位**: 複数文書・複数選択肢で技術が食い違う場合は、**frontend ルール（`rules/frontend-*.md`）を最優先（正）** とし、他（CLAUDE.md の旧記述・設計書・スキル）はそれに合わせる。
+- **未指定時の挙動**: 採用技術が未確定のまま設計フェーズ（`design-from-requirements`）以降に進まない。対象子の `.claude/rules/` 上に「要確定」項目が残る間は中断し、人間に指定を求める。既定値による自動決定は禁止する。
+- **矛盾時の優先順位**: 複数文書・複数選択肢で技術が食い違う場合は、**frontend ルール（`claude-poc-frontend/.claude/rules/frontend-*.md`）を最優先（正）** とし、他（CLAUDE.md の旧記述・設計書・スキル）はそれに合わせる。
 
 ## 開発ルール
 
@@ -102,7 +102,7 @@
 - 要件定義作成フェーズでは要件定義成果物の作成だけを行い、設計、実装、UT、静的解析、E2E には進まない。
 - 設計書作成フェーズでは、採択済みの要件定義書を入力として設計成果物だけを作成する。設計時に要件の意思決定（業務ルール追加、画面新設、用語定義など）は行わない。
 - 設計書は人手レビューと採択を経た後にのみ、後続の製造、UT、カバレッジ改善、静的解析、E2E へ進める。
-- **採択ゲートは機械的に強制する**。要件・設計の各フェーズは、人手レビュー後に `bash .claude/skills/_common/scripts/approve-phase.sh <requirements|design> <承認者名>` を実行して `.skills-state/<phase>/approved.json`（`approved: true`）を生成する。後続 skill（`design-from-requirements` / `ui-brief-from-design` / `create-issues-from-design` / `implement-from-issue`）は開始前に前段フェーズの `approved.json` の `approved == true` を確認し、未採択なら中断する。ループの `passed=true`（BLOCK==0）は採択とは別の関門であり、自動採択ではない。
+- **採択ゲートは人間の明示アクションで強制する**。証跡はすべて GitHub に残す。**要件定義・設計書の採択 = docs リポジトリ（claude-poc-docs）の `main` への PR マージ**とし、人間が PR をレビューし `main` へマージすることが採択行為である（前提: docs の `main` に branch protection（PR 必須・レビュー必須・直 push 禁止）を設定する）。マージを契機に `create-issues-from-docs` workflow が後続 Issue（要件変更→設計書作成 Issue / 設計変更→実装 Issue）を自動起票する。**実装の開始 = 人間が対象 Issue に `@claude` とコメントすること**であり、Claude・skill が自らコメント・マージして起動してはならない。ローカル（親アンブレラ）から後続フェーズの skill（`design-from-requirements` / `ui-brief-from-design` / `create-issues-from-design` / `implement-from-issue`）を起動する場合は、開始前に入力ドキュメントが docs の `main` にマージ済みであることを確認し（`git log origin/main -- <パス>` 等）、未マージなら中断して人手レビュー・マージを依頼する。ループの `passed=true`（BLOCK==0）は採択とは別の関門であり、自動採択ではない。
 - 既定の配置がない場合、要件定義成果物は docs/requirements、設計成果物は docs/design、テスト成果物は docs/test に置く。
 - UI 設計を Claude Design（claude.ai/design）で行う場合は、設計フェーズ採択後に `/ui-brief-from-design` で `docs/design/ui-design/brief/` を生成する。ブリーフは「共通ブリーフ（`_共通.md`）+ 画面別ブリーフ」の2層構造とし、Claude Design へは共通ブリーフを先に投入してから画面別ブリーフをまとめて添付する。
 - Claude Design の Export 物は `docs/design/ui-design/handoff/` 配下に **Export の構造そのまま**（`README.md` / `prototype/` / `tokens/` 等）で人手で格納する。prototype/ 配下の jsx は画面単位に分割せず、Claude Design が出力したカテゴリ単位（`wf-screens-*.jsx` 等）のまま保持する。設計書本体（`docs/design/screens/` 等）は書き換えない。
@@ -119,7 +119,7 @@
 - 要件定義では **コード値定義** を `docs/requirements/コード値定義.md` に作成し、業務区分値（ステータス・種別等）の概念レベルの正典を置く（区分名 / コード値 / 表示名 / 意味 / 関連 BR・状態 ST）。設計フェーズの `_common.yaml` の enum はこれを物理化したものとして対応づける。「区分値なし」の場合もその旨を明記する。
 - 要件定義では **通知・文面定義** を `docs/requirements/通知・文面定義.md`（または `メッセージ一覧.md` に統合）に作成し、通知タイプ・送信メールの件名 / 本文 / 差込変数 / 関連 UC・BR・EXT を記述する。第 1 版で通知・メールが無い場合もその旨を明記する。
 - 非機能要件のうち **パスワードポリシー・セッション有効時間・通信暗号化・対象ブラウザ・対象デバイス・バックアップ最低頻度・障害検知/通知方法・稼働時間帯** は設計着手前に確定する。未確定値を本文に「TBD」で残さず、`docs/requirements/オープン課題.md` の `Q-NF*` に切り出して本文からは参照する。
-- **採用技術スタックは設計着手前に `rules/` で確定する**（ハードゲート）。FW・ビルド・DB 製品・マイグレーション・テスト/静的解析ツール・カバレッジ閾値・E2E の所在・リポジトリ構成を `rules/frontend-*.md`・`rules/backend-*.md` に確定させ、`rules/` 上に「要確定」項目が残る間は `design-from-requirements` 以降に進まない。Claude は未指定スタックを既定値で補完せず、人間に指定を求める。技術名・ライブラリ・バージョンは `rules/` にのみ記載し、CLAUDE.md・設計書・スキルでは再掲しない（矛盾時は frontend ルールを正とする）。
+- **採用技術スタックは設計着手前に各子リポジトリの `.claude/rules/` で確定する**（ハードゲート）。FW・ビルド・DB 製品・マイグレーション・テスト/静的解析ツール・カバレッジ閾値・E2E の所在・リポジトリ構成を `claude-poc-frontend/.claude/rules/frontend-*.md`・`claude-poc-backend/.claude/rules/backend-*.md` に確定させ、`.claude/rules/` 上に「要確定」項目が残る間は `design-from-requirements` 以降に進まない。Claude は未指定スタックを既定値で補完せず、人間に指定を求める。技術名・ライブラリ・バージョンは各子の `.claude/rules/` にのみ記載し、CLAUDE.md・設計書・スキルでは再掲しない（矛盾時は frontend ルールを正とする）。
 - `docs/requirements/オープン課題.md` の冒頭には **クローズ運用ルール章** を必ず置き、「設計着手前にクローズ必須の課題区分」と「設計フェーズへ持ち越して良い課題区分」を明示する。`Q-NF*`（セキュリティ・運用ベースライン）、`Q-DM*`（データモデル）、`Q-EI*`（外部 IF）、`Q-MIG*`（移行）に該当する課題は設計フェーズ起動前に closed にする（要件採択者の責務）。
 - 要件定義作成・レビュー・修正の全工程で `.claude/skills/requirements-guardrails/` の **ガードレール（MUST NOT）と文書間整合チェック** を適用する。詳細: ネガティブパターン（カテゴリ A〜D）は `references/negative-patterns.md`、非機能要件の要求値テンプレは `references/nonfunctional-template.md`、文書間整合（ステータス遷移／画面遷移／用語）の確認手順は `references/consistency-checklist.md`。未確定事項は本文に断定で書かず `> **[要確認]** {内容} / 選択肢A / 選択肢B / 影響範囲 / 確認期限` 形式で残し、同内容を `オープン課題.md` に転記する。
 - 設計では **シーケンス図** を `docs/design/sequences/[シーケンス名].md` にシーケンス単位で作成する。フロントエンド ↔ API ↔ DB（必要に応じて外部システム）の交互動作を Mermaid（`sequenceDiagram`）で描き、各シーケンスには **シーケンス ID（SEQ-001 形式・3 桁ゼロ埋め）** を採番する。対応する画面 ID（SCR-XXX）・API（`api/[リソース名].yaml` の operationId）・ユースケース（UC-XXX）・受け入れ条件（AC-XXX）を本文中で明示的に引用する。シーケンス名は業務用語の日本語名（例: `応募確定.md`）とする。
@@ -130,8 +130,8 @@
 - 設計では **バッチ設計**（`docs/design/バッチ設計.md`）と **共通部品設計**（`docs/design/共通部品設計.md`）を作成する。バッチ設計はトランザクション単位・再実行・件数規模時の分割・監視連携・失敗時詳細を `IF定義.md` の IF 粒度から詳細化する（バッチが無い場合はその旨を明記）。共通部品設計は共通例外ハンドラ・バリデーション共通化・共通レスポンス整形・ロギング方式（ErrorResponse スキーマの実装方式を含む）を定める。
 - 設計では **運用設計** を `docs/design/運用設計.md` に作成し、監視項目・アラート閾値・バックアップ/リストア手順・ジョブ運用・ログ保持と監査ログ出力箇所を定める。`非機能要件.md` の運用・可用性の要求値を設計に落とし、要求値と突合できるようにする。
 - 変更は差分が追いやすい加算型を優先し、無関係なファイルは書き換えない。
-- バックエンドの実装規約（アーキテクチャ・レイヤー責務・パッケージ構成・命名）は **`rules/backend-*.md`（正典）に従う**。CLAUDE.md ではバックエンド実装規約を再掲しない（二重管理の禁止）。バックエンドは画面描画を持たず、JSON ベースの REST API のみを提供する方針は維持する。
-- フロントエンドのディレクトリ構成・状態管理・API 連携・ルーティング・認可・テストの規約は **`rules/frontend-*.md`（正典）に従う**。CLAUDE.md ではフロント実装規約を再掲しない（二重管理の禁止）。表示ロジックは単純に保ち、業務判定やデータ整形はバックエンドの Service 側に寄せる方針は維持する。
+- バックエンドの実装規約（アーキテクチャ・レイヤー責務・パッケージ構成・命名）は **`claude-poc-backend/.claude/rules/backend-*.md`（正典）に従う**。CLAUDE.md ではバックエンド実装規約を再掲しない（二重管理の禁止）。バックエンドは画面描画を持たず、JSON ベースの REST API のみを提供する方針は維持する。
+- フロントエンドのディレクトリ構成・状態管理・API 連携・ルーティング・認可・テストの規約は **`claude-poc-frontend/.claude/rules/frontend-*.md`（正典）に従う**。CLAUDE.md ではフロント実装規約を再掲しない（二重管理の禁止）。表示ロジックは単純に保ち、業務判定やデータ整形はバックエンドの Service 側に寄せる方針は維持する。
 - フロントエンドとバックエンドの境界は OpenAPI 3.1 で定義した REST API とし、認証は JWT などのトークンベースで CORS 設定を明示する。
 - DB 変更では明示的な migration を作成し、Entity、Repository、DDL、`docs/design/tables/*.md` の整合を保つ。
 - 要件または受け入れ条件（AC-XXX）ごとに、少なくとも 1 つの実行可能なテストへ対応付ける。テストには **テストケース ID（単体は TC-001 形式、E2E は E2E-001 形式・いずれも 3 桁ゼロ埋め）** を採番し、`docs/test/単体テストマトリクス.md` および E2E シナリオ表で AC-XXX・SCR-XXX と相互参照する。各テストは **正常系 / 異常系（入力エラー）/ 境界値 / 権限境界** の区分を明示する。
@@ -199,4 +199,6 @@
 
 - docs/test/単体テストマトリクス.md（TC-XXX 採番。AC-XXX・BR-XXX・SCR-XXX と相互参照）
 - docs/test/結合テストマトリクス.md（IT-XXX 採番。Controller→Service→Repository→DB 実結合・サービス間結合。AC-XXX・SCR-XXX・API operationId と相互参照）
-- docs/test/トレーサビリティマト
+- docs/test/トレーサビリティマトリクス.md（RTM。UC / AC / BR / SCR / API operationId / Issue# / TC-XXX / IT-XXX / E2E-XXX を 1 表に集約しカバレッジ漏れを検出）
+
+> テストの「戦略・計画・観点」（テスト戦略 / シナリオ戦略 / 非機能テスト計画 / セキュリティテスト観点）は設計フェーズ成果物として `docs/design/` に置き、「ケース化したマトリクス」は製造フェーズ成果物として `docs/test/` に置く。
