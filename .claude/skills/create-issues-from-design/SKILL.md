@@ -8,6 +8,11 @@ argument-hint: [設計書のパス（省略時は docs/design/ 配下を全件�
 
 # 設計書から GitHub Issue を起票する
 
+> **パス解決（マルチリポジトリ対応）**: 本スキル内の `docs/requirements/`・`docs/design/`・`docs/test/` は **docs リポジトリ（claude-poc-docs）ルート相対**のパスを指す。
+> - docs リポジトリをカレントとして実行している場合: そのまま使う。
+> - 親アンブレラ（claude-poc-rules）から実行している場合（カレント直下に `claude-poc-docs/` が存在する場合）: これらすべてのパスに `claude-poc-docs/` を前置して読み書きする。
+> - CI（子リポジトリ単体のチェックアウト）で docs リポジトリが存在しない場合: workflow が追加チェックアウトした docs のパスを使う。それも無い場合は Issue 本文に埋め込まれた設計情報を入力とし、原本の参照が必要なら中断して人間に確認する。
+
 次の設計書入力をもとに GitHub Issue を起票する。
 
 設計書入力: $ARGUMENTS

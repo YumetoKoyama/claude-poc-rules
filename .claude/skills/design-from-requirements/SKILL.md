@@ -7,6 +7,11 @@ argument-hint: [要件定義ディレクトリのパス（省略時は docs/requ
 
 # 要件定義書から設計書を作成する
 
+> **パス解決（マルチリポジトリ対応）**: 本スキル内の `docs/requirements/`・`docs/design/`・`docs/test/` は **docs リポジトリ（claude-poc-docs）ルート相対**のパスを指す。
+> - docs リポジトリをカレントとして実行している場合: そのまま使う。
+> - 親アンブレラ（claude-poc-rules）から実行している場合（カレント直下に `claude-poc-docs/` が存在する場合）: これらすべてのパスに `claude-poc-docs/` を前置して読み書きする。
+> - CI（子リポジトリ単体のチェックアウト）で docs リポジトリが存在しない場合: workflow が追加チェックアウトした docs のパスを使う。それも無い場合は Issue 本文に埋め込まれた設計情報を入力とし、原本の参照が必要なら中断して人間に確認する。
+
 この skill の入力は **採択済みの要件定義書** です。要件定義書がない場合、または採択済みでない場合は中断し、先に `requirements-from-input` の実行とレビュー採択を依頼すること。
 
 > **採択ゲート（必須）**: 採択は「要件定義書の PR を人間がレビューし docs リポジトリの `main` へマージすること」で行う（branch protection で直 push 禁止が前提）。開始前に、入力の要件定義書（`docs/requirements/`）が `main` に存在することを確認する（CI は main 契機のため自明。ローカルでは `git log origin/main -- docs/requirements/` 等で確認し、未マージなら中断して人手レビュー・マージを依頼する）。採択は AI の自己判断では行わず、Claude 自身がマージして採択扱いにしてはならない。
