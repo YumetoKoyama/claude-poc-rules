@@ -8,6 +8,11 @@ allowed-tools: Bash, Read, Glob, Grep, Write
 
 # 要件定義レビュー
 
+> **パス解決（マルチリポジトリ対応）**: 本スキル内の `docs/requirements/`・`docs/design/`・`docs/test/` は **docs リポジトリ（claude-poc-docs）ルート相対**のパスを指す。
+> - docs リポジトリをカレントとして実行している場合: そのまま使う。
+> - 親アンブレラ（claude-poc-rules）から実行している場合（カレント直下に `claude-poc-docs/` が存在する場合）: これらすべてのパスに `claude-poc-docs/` を前置して読み書きする。
+> - CI（子リポジトリ単体のチェックアウト）で docs リポジトリが存在しない場合: workflow が追加チェックアウトした docs のパスを使う。それも無い場合は Issue 本文に埋め込まれた設計情報を入力とし、原本の参照が必要なら中断して人間に確認する。
+
 このスキルは [docs/architecture/skill-orchestration.md](../../../docs/architecture/skill-orchestration.md) の Pattern 4 における **review** 段を担当します。
 
 **`context: fork` 必須**: produce skill（`/requirements-from-input`）の思考プロセスを引き継がず、書かれた成果物だけで独立判定するため。

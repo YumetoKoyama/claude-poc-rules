@@ -6,6 +6,11 @@ argument-hint: <ISSUE-NUMBER>
 
 # GitHub Issue から実装・品質チェック・PR 作成を行う
 
+> **パス解決（マルチリポジトリ対応）**: 本スキル内の `docs/requirements/`・`docs/design/`・`docs/test/` は **docs リポジトリ（claude-poc-docs）ルート相対**のパスを指す。
+> - docs リポジトリをカレントとして実行している場合: そのまま使う。
+> - 親アンブレラ（claude-poc-rules）から実行している場合（カレント直下に `claude-poc-docs/` が存在する場合）: これらすべてのパスに `claude-poc-docs/` を前置して読み書きする。
+> - CI（子リポジトリ単体のチェックアウト）で docs リポジトリが存在しない場合: workflow が追加チェックアウトした docs のパスを使う。それも無い場合は Issue 本文に埋め込まれた設計情報を入力とし、原本の参照が必要なら中断して人間に確認する。
+
 この skill はメインセッションから使う（fork しない）。
 
 対象 Issue: $ARGUMENTS

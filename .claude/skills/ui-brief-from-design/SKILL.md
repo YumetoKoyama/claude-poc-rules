@@ -8,6 +8,11 @@ argument-hint: [設計ディレクトリのパス（省略時は docs/design/）
 
 # 設計書から UI 設計ブリーフを作成する
 
+> **パス解決（マルチリポジトリ対応）**: 本スキル内の `docs/requirements/`・`docs/design/`・`docs/test/` は **docs リポジトリ（claude-poc-docs）ルート相対**のパスを指す。
+> - docs リポジトリをカレントとして実行している場合: そのまま使う。
+> - 親アンブレラ（claude-poc-rules）から実行している場合（カレント直下に `claude-poc-docs/` が存在する場合）: これらすべてのパスに `claude-poc-docs/` を前置して読み書きする。
+> - CI（子リポジトリ単体のチェックアウト）で docs リポジトリが存在しない場合: workflow が追加チェックアウトした docs のパスを使う。それも無い場合は Issue 本文に埋め込まれた設計情報を入力とし、原本の参照が必要なら中断して人間に確認する。
+
 この skill の入力は **採択済みの設計書**（`docs/design/`）と、要件定義の **`docs/requirements/ブランドガイドライン.md`**（任意）です。設計書が存在しない場合、または採択済みでない場合は中断し、先に `design-from-requirements` の実行とレビュー採択を依頼すること。
 
 > **採択ゲート（必須）**: 採択は「設計書の PR を人間がレビューし docs リポジトリの `main` へマージすること」で行う（branch protection で直 push 禁止が前提）。開始前に、入力の設計書（`docs/design/`）が `main` に存在することを確認する（ローカルでは `git log origin/main -- docs/design/` 等で確認）。未マージなら中断し、人手レビュー・マージを依頼する。
