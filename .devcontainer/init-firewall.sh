@@ -34,6 +34,8 @@ ALLOWED_DOMAINS=(
   claude.ai
   console.anthropic.com
   statsig.anthropic.com
+  # Claude Code ネイティブインストーラの自動アップデート配信元 (claude update)
+  storage.googleapis.com
 
   # GitHub (PR 作成・Issue 操作・git push)
   github.com

@@ -1,7 +1,6 @@
 ---
 name: implement-from-design
 description: 【非推奨 / DEPRECATED】設計書から直接実装する旧 skill。Issue 起票を経る implement-loop / implement-from-issue に統合されたため非推奨。製造は /create-issues-from-design → /implement-loop <ISSUE-NUMBER> の経路を使うこと。
-disable-model-invocation: true
 argument-hint: [設計書パス]
 ---
 

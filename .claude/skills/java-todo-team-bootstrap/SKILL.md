@@ -1,7 +1,6 @@
 ---
 name: java-todo-team-bootstrap
 description: 【非推奨 / DEPRECATED】Agent Teams（teammate 機能）で開発チームを組成する旧 skill。本プロジェクトは Agent Teams を使用しない方針（docs/architecture/skill-orchestration.md §1・§8）に統一したため非推奨。requirements-loop / design-loop / implement-loop の skill 連鎖を使うこと。
-disable-model-invocation: true
 ---
 
 # 【非推奨】React + Spring Boot Web アプリ用 team 起動

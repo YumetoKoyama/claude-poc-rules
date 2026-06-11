@@ -1,7 +1,6 @@
 ---
 name: create-issues-from-design
 description: 人手レビューで採択済みの設計書から GitHub Issue を起票するときに使う。画面・API（YAML）・IF・テーブル単位の各設計ファイルを解析し、適切な粒度で Issue を分割して起票する。ui-design/handoff/ が存在する場合は README のマッピング表を読み、画面 Issue に prototype 関数参照を埋め込む。レビュー採択前には使用しない。
-disable-model-invocation: true
 context: fork
 argument-hint: [設計書のパス（省略時は docs/design/ 配下を全件対象）]
 ---
@@ -29,6 +28,16 @@ argument-hint: [設計書のパス（省略時は docs/design/ 配下を全件�
 
 - 対象リポジトリに起票された GitHub Issue 一覧
 - Issue 番号・タイトル・URL・付与ラベルの Markdown テーブル
+
+## Issue 本文の @ メンション抑止（必須）
+
+GitHub は Issue 本文中の `@名前` を自動的にユーザー / チームへのメンションへ変換し、無関係なアカウントへ通知が飛ぶ。Issue 本文・コメントに `@` で始まるトークンを書くときは、**必ずインラインコード（バッククォート）で囲んでメンション化を防ぐ**。
+
+- 対象例: npm スコープパッケージ（`@playwright/test`・`@reduxjs/toolkit`・`@types/node` 等）、Java アノテーション（`@PreAuthorize`・`@Service` 等）、その他 `@` で始まる識別子。
+- NG: 「@playwright/test を使う」のように地の文に裸で書く（メンション化される）。
+- OK: 「`@playwright/test` を使う」のようにバッククォートで囲む。
+- すでにフェンス付きコードブロックや YAML / コード片の中にある `@` は変換されないため、追加対応は不要。
+- 例外: 実装開始トリガーとして人間が投稿する `@claude` コメントは対象外（Issue 本文には書かない）。
 
 ## 指示
 

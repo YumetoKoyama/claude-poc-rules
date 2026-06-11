@@ -1,9 +1,8 @@
 ---
 name: design-loop
 description: 「design phase の produce → review → fix → review」の反復ループを最大 max_iterations 回まで回すオーケストレータ。BLOCK 件数が 0 になるか上限到達まで自動で繰り返す。
-disable-model-invocation: true
-argument-hint: <docs/requirements/ または個別の要件定義ファイルパス（省略時 docs/requirements/ 全件）>
-allowed-tools: Bash, Read, SlashCommand
+argument-hint: <docs/requirements/ または個別の要件定義ファイルパス（省略時 docs/requirements/ 全件）、または設計書作成 Issue 番号>
+allowed-tools: Bash, Read, Skill
 ---
 
 # design loop オーケストレータ
@@ -29,21 +28,23 @@ allowed-tools: Bash, Read, SlashCommand
 
 ## 手順
 
+0. **スタック確定ゲート**: `bash .claude/skills/_common/scripts/check-stack-decided.sh` を実行し、exit 1 の場合はループを開始せず ESCALATE 相当として終了する。未確定項目の一覧を人間に提示し、確定表（*-00-stack.md）への記入を依頼する。state.json には `gate: "stack-undecided"` を記録する。
 1. **state を読む**: 上で出力されたパス（`.skills-state/design/state.json`）を Read で読み、`stage` / `iteration` / `passed` / `escalated` を取得する。
 2. **終了条件を判定**:
    - `passed == true` → 「✅ design PASS」のサマリを表示して終了
    - `escalated == true` → 未解決 BLOCK 一覧を表示して人手レビューへ
    - 上記以外 → 次の stage を実行する
 3. **stage に応じて分岐**:
-   - `produce`: 次の SlashCommand を呼ぶ:
-     - `/design-from-requirements` （引数は state.extra_args を渡す）
+   - `produce`: state.extra_args の内容で呼ぶ skill を分岐し、Skill ツールで呼ぶ:
+     - extra_args が GitHub Issue 番号（数値のみ。例 `123` / `#123`）の場合: `/design-from-issue` （引数に Issue 番号を渡す。Issue 本文から対象の要件定義書を解決して設計する）
+     - それ以外（要件定義パスまたは空）の場合: `/design-from-requirements` （引数は state.extra_args を渡す）
      - 完了後: `bash ${CLAUDE_SKILL_DIR}/../_common/scripts/advance-state.sh design review`
-   - `review`: 次の SlashCommand を呼ぶ:
+   - `review`: Skill ツールで次の skill を呼ぶ:
      - `/review-design`
      - 完了後: review skill が生成した review JSON のパス（`.skills-state/design/round-N-review.json`）を引数に渡して
        `bash ${CLAUDE_SKILL_DIR}/../_common/scripts/record-review.sh design <review-json-path>`
      - record-review.sh が次の stage（done / fix / escalate）を決めて state に書き込む
-   - `fix`: 次の SlashCommand を呼ぶ:
+   - `fix`: Skill ツールで次の skill を呼ぶ:
      - `/fix-design`
      - 完了後: `bash ${CLAUDE_SKILL_DIR}/../_common/scripts/advance-state.sh design review`（iteration が自動でインクリメントされる）
    - `done` / `escalate`: 何もせず終了サマリを表示
@@ -62,7 +63,7 @@ bash ${CLAUDE_SKILL_DIR}/../_common/scripts/summarize-state.sh design
 ## 注意事項
 
 - 必ず冒頭で state を読み、stage に応じて分岐する。**state を無視して何かを書き始めない**。
-- sub-skill 呼び出しは **SlashCommand ツール** で行う（Bash で直接 .md を実行しない）。
+- sub-skill 呼び出しは **Skill ツール** で行う（Bash で直接 .md を実行しない）。
 - review skill が JSON を出さなかった、または不正だった場合は orchestrator を即停止し、ユーザーに報告する。
 - fix skill は BLOCK + SUGGEST を対象に修正する。NIT には触らない（review skill 側で対象外）。
 

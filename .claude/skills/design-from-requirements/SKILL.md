@@ -16,6 +16,8 @@ argument-hint: [要件定義ディレクトリのパス（省略時は docs/requ
 
 > **採択ゲート（必須）**: 採択は「要件定義書の PR を人間がレビューし docs リポジトリの `main` へマージすること」で行う（branch protection で直 push 禁止が前提）。開始前に、入力の要件定義書（`docs/requirements/`）が `main` に存在することを確認する（CI は main 契機のため自明。ローカルでは `git log origin/main -- docs/requirements/` 等で確認し、未マージなら中断して人手レビュー・マージを依頼する）。採択は AI の自己判断では行わず、Claude 自身がマージして採択扱いにしてはならない。
 
+> **スタック確定ゲート（必須）**: 採択ゲートの確認後、`bash .claude/skills/_common/scripts/check-stack-decided.sh` を実行する。exit 1（`要確定` の残存、または確定表 `*-00-stack.md` の不存在）の場合は設計を**開始せず**、スクリプトが出力した未確定項目の一覧をそのまま人間に提示して中断する。Claude が既定値で補完して続行してはならない（CLAUDE.md「技術スタックの正典と確定ルール」）。確定の記入は人間が `claude-poc-frontend/.claude/rules/frontend-00-stack.md`・`claude-poc-backend/.claude/rules/backend-00-stack.md` に対して行う。
+
 要件定義入力: $ARGUMENTS（省略時は `docs/requirements/` 配下を全件対象）
 
 ## 成果物

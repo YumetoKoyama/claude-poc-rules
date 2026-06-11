@@ -1,7 +1,6 @@
 ---
 name: review-design
 description: docs/design/ 配下の設計書一式をレビューし、BLOCK/SUGGEST/NIT の重大度付き JSON を出力する。design-loop オーケストレータから呼ばれる。
-disable-model-invocation: true
 context: fork
 allowed-tools: Bash, Read, Glob, Grep, Write
 ---
@@ -26,6 +25,7 @@ allowed-tools: Bash, Read, Glob, Grep, Write
 - 入力: `docs/requirements/`（整合確認の参照元）、`docs/design/` 配下の Markdown / YAML
 - 入力: `.skills-state/design/state.json`
 - 出力: `.skills-state/design/round-<N>-review.json`
+- 出力: `docs/design/レビュー結果.md`（人間用サマリ。PR 差分に残す正。round ごとに最上部へ追記）
 - 出力（標準出力）: 生成した review JSON のパスを 1 行
 
 ## 手順
@@ -50,7 +50,25 @@ allowed-tools: Bash, Read, Glob, Grep, Write
    ```
    - パース失敗（exit 1）した場合は stderr のエラー位置と前後コンテキストを Read で確認し、未エスケープの `"` `\` 生改行を修正して再 Write → 再検証する。
    - 最大 3 回まで自己修正を試み、それでも通らない場合は標準出力に `ERROR: invalid JSON after 3 attempts` を出力して停止する（orchestrator が中断する）。
-7. **標準出力に JSON パスを 1 行で出す**
+7. **レビュー結果サマリ（人間用）を Write（必須・標準出力の直前に実施）**: `docs/design/レビュー結果.md` に、人間がレビューできる Markdown サマリを出力する。`.skills-state` の JSON は gitignore 対象で消えるため、**PR 差分に残るこのファイルが人間向けの正となる**。
+   - 既存の `docs/design/レビュー結果.md` があれば Read し、**今回の round セクションを最上部に追記**（過去 round は残す。最新が一番上）。
+   - フォーマット:
+     ```markdown
+     # レビュー結果（design）
+
+     > 最新 round が最上部。各 round は機械可読 JSON（`.skills-state/.../round-<N>-review.json`）を人間向けに整形したもの。
+
+     ## Round <N> — <YYYY-MM-DD HH:MM> — overall: <PASS|FAIL>（BLOCK <件> / SUGGEST <件> / NIT <件>）
+
+     | 重大度 | カテゴリ | 該当 | 指摘 | 推奨対応 | 対応状況 |
+     |---|---|---|---|---|---|
+     | BLOCK | <category> | <path:line> | <message> | <suggested_fix> | 未対応 |
+     | SUGGEST | ... | ... | ... | ... | 未対応 |
+     ```
+   - findings は **BLOCK → SUGGEST → NIT** の順に並べる。JSON の findings と件数・内容を一致させる。
+   - 「対応状況」列は初期値 `未対応`。後続の fix skill が反映したら `対応済み` / `見送り（理由）` に更新する想定（fix skill 側で更新）。
+   - BLOCK が 0 件で overall=PASS の場合も、その round セクション（指摘なし）を必ず残し、採択者が「クリーンで PASS した」ことを確認できるようにする。
+8. **標準出力に JSON パスを 1 行で出す**
 
 ## レビュー観点
 
