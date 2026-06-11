@@ -1,7 +1,6 @@
 ---
 name: fix-implementation
 description: review-implementation が生成した review JSON の BLOCK と SUGGEST を、現在の feature ブランチに追加コミットして反映する。NIT は無視する。implement-loop オーケストレータから呼ばれる。
-disable-model-invocation: true
 context: fork
 allowed-tools: Bash, Read, Glob, Grep, Edit, Write
 ---

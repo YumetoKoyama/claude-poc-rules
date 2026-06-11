@@ -1,17 +1,15 @@
 ---
 name: review-implementation
 description: 現在の feature ブランチの実装差分（コード + 品質ゲート結果）をレビューし、BLOCK/SUGGEST/NIT の重大度付き JSON を出力する。implement-loop オーケストレータから呼ばれる。
-disable-model-invocation: true
 context: fork
 allowed-tools: Bash, Read, Glob, Grep, Write
 ---
 
 # 実装レビュー
 
-> **パス解決（マルチリポジトリ対応）**: 本スキル内の `docs/requirements/`・`docs/design/`・`docs/test/` は **docs リポジトリ（claude-poc-docs）ルート相対**のパスを指す。
-> - docs リポジトリをカレントとして実行している場合: そのまま使う。
-> - 親アンブレラ（claude-poc-rules）から実行している場合（カレント直下に `claude-poc-docs/` が存在する場合）: これらすべてのパスに `claude-poc-docs/` を前置して読み書きする。
-> - CI（子リポジトリ単体のチェックアウト）で docs リポジトリが存在しない場合: workflow が追加チェックアウトした docs のパスを使う。それも無い場合は Issue 本文に埋め込まれた設計情報を入力とし、原本の参照が必要なら中断して人間に確認する。
+> **パス解決（マルチリポジトリ対応）**:
+> - **読み取り入力（docs リポジトリ＝claude-poc-docs）**: `docs/requirements/`・`docs/design/` は docs リポジトリ ルート相対。docs をカレントで実行ならそのまま、親アンブレラからなら `claude-poc-docs/` を前置、CI で workflow が追加チェックアウトした docs があればそのパス、無ければ Issue 本文の埋め込み設計を使う。
+> - **書き込み出力（own リポジトリ＝レビュー対象の実装リポジトリ）**: レビュー結果 `docs/test/レビュー結果/implement-issue-<ISSUE>.md` は **own リポジトリのワーキングツリー直下** に書き、feature ブランチへ commit/push して **PR に含める**。docs リポジトリ（claude-poc-docs）には書かない（CI では読み取り専用で push されず PR に残らないため）。`.skills-state/` は own リポジトリ直下（gitignore 対象・ephemeral）。
 
 このスキルは [docs/architecture/skill-orchestration.md](../../../docs/architecture/skill-orchestration.md) の Pattern 4 における **review** 段を担当します。
 
@@ -27,7 +25,10 @@ feature ブランチの実装差分・設計書との整合・品質ゲート(UT
 - 入力: 対応する Issue の設計書（`docs/design/` 配下の関連ファイル）
 - 入力: 品質ゲートの実行結果（`build/` `target/` `coverage/` 等のレポート）
 - 入力: `.skills-state/implement/state.json`
-- 出力: `.skills-state/implement/round-<N>-review.json`
+- 出力: `.skills-state/implement/round-<N>-review.json`（own リポ直下・gitignore）
+- 出力: **own リポジトリ**の `docs/test/レビュー結果/implement-issue-<ISSUE>.md`（人間用サマリ。PR 差分に残す正。同一 Issue の round は同ファイルの最上部へ追記。**docs リポには書かない**）。書いた後、feature ブランチへ commit/push して PR に含める
+  - **レビュー結果は `docs/test/レビュー結果/` フォルダ配下に、対象がわかるファイル名（`implement-issue-<ISSUE>.md`）で出力する**。Issue ごと・工程ごとにファイルを分けることで、複数 Issue・複数実行での同名衝突と PR 間のマージ競合を防ぐ（旧 `docs/test/レビュー結果.md` 単一ファイルは廃止。過去分は移動しない）
+  - `<ISSUE>` は state（`extra_args`）から取得する。取得できない場合は現在のブランチ名 `feature/issue-<N>` から抽出する
 - 出力（標準出力）: 生成した review JSON のパスを 1 行
 
 ## 手順
@@ -38,6 +39,7 @@ feature ブランチの実装差分・設計書との整合・品質ゲート(UT
 4. **品質ゲート結果の確認**（実行済みかをレポートの更新時刻で判定する。`implement-from-issue` 手順 5 の固定パスより新しいレポートが無ければ category=`quality_gate` の BLOCK とする）:
    - バックエンド: `mvn test` の最新結果、JaCoCo カバレッジレポート、SpotBugs / Checkstyle / PMD レポート
    - フロントエンド: `npm test` の Vitest / Jest 結果、Istanbul カバレッジ、ESLint / TypeScript 型チェック
+   - テスト設計マトリクス（単体）: `bash .claude/skills/_common/scripts/check-test-matrix.sh docs/test <ISSUE> unit` を実行し、**存在・構造**（単体マトリクスの TC 行・RTM の Issue 行）を確認する。exit 1 なら category=`quality_gate` の BLOCK（produce 段でゲートが回っていない）。存在が確認できたら、レビューは以降の観点で **単体テストの中身のカバレッジ** を評価する。※**結合テスト（IT-XXX）は本レビューの対象外**（設計・実施とも結合テスト工程＝`/integration-test-from-design` が担い、その工程のレビューで評価する）。
 5. **コードレビュー**: 差分ファイルを Read し、設計書と突き合わせる
 5.5. 切断チェック（必須）: 差分ファイルを切断・破損の観点で機械的に検出し、得られた findings を自分の review JSON に取り込む。
    ```bash
@@ -59,18 +61,43 @@ feature ブランチの実装差分・設計書との整合・品質ゲート(UT
    ```
    - パース失敗（exit 1）した場合は stderr のエラー位置と前後コンテキストを Read で確認し、未エスケープの `"` `\` 生改行を修正して再 Write → 再検証する。
    - 最大 3 回まで自己修正を試み、それでも通らない場合は標準出力に `ERROR: invalid JSON after 3 attempts` を出力して停止する（orchestrator が中断する）。
-8. **標準出力に JSON パスを 1 行**
+8. **レビュー結果サマリ（人間用）を own リポジトリへ Write（必須・標準出力の直前に実施）**: **own リポジトリ**の `docs/test/レビュー結果/implement-issue-<ISSUE>.md`（＝レビュー対象の実装リポのワーキングツリー直下。`claude-poc-docs/` を前置しない）に、人間がレビューできる Markdown サマリを出力する。`.skills-state` の JSON は gitignore 対象で消えるため、**PR 差分に残るこのファイルが人間向けの正となる**。
+   - フォルダが無ければ作成する（`mkdir -p docs/test/レビュー結果`）。
+   - 同一 Issue の既存ファイル（`docs/test/レビュー結果/implement-issue-<ISSUE>.md`）があれば Read し、**今回の round セクションを最上部に追記**（過去 round は残す。最新が一番上）。**他の Issue のファイルには触れない**。
+   - フォーマット:
+     ```markdown
+     # レビュー結果（implement / Issue #<ISSUE> <Issue タイトル>）
+
+     > 最新 round が最上部。各 round は機械可読 JSON（`.skills-state/.../round-<N>-review.json`）を人間向けに整形したもの。
+
+     ## Round <N> — <YYYY-MM-DD HH:MM> — overall: <PASS|FAIL>（BLOCK <件> / SUGGEST <件> / NIT <件>）
+
+     | 重大度 | カテゴリ | 該当 | 指摘 | 推奨対応 | 対応状況 |
+     |---|---|---|---|---|---|
+     | BLOCK | <category> | <path:line> | <message> | <suggested_fix> | 未対応 |
+     | SUGGEST | ... | ... | ... | ... | 未対応 |
+     ```
+   - findings は **BLOCK → SUGGEST → NIT** の順に並べる。JSON の findings と件数・内容を一致させる。
+   - 「対応状況」列は初期値 `未対応`。後続の fix skill が反映したら `対応済み` / `見送り（理由）` に更新する想定（fix skill 側で更新）。
+   - BLOCK が 0 件で overall=PASS の場合も、その round セクション（指摘なし）を必ず残し、採択者が「クリーンで PASS した」ことを確認できるようにする。
+8.5. **レビュー結果を PR に反映（commit/push）**: `docs/test/レビュー結果/implement-issue-<ISSUE>.md` のみを現在の feature ブランチへ commit/push し、PR に含める（コード本体には触れない＝diagnostics のみの原則は維持。コミット対象はこのレビュー成果物だけ）。
+   ```bash
+   git add "docs/test/レビュー結果/implement-issue-<ISSUE>.md"
+   git commit -m "docs(review): implement round <N> レビュー結果 (#<ISSUE>)" || true
+   git push || true
+   ```
+9. **標準出力に JSON パスを 1 行**
 
 ## レビュー観点
 
 ### BLOCK
 
 - `quality_gate`: 単体テスト・静的解析のいずれかが**失敗**（E2E は品質ゲート対象外。AWS 環境構築後に E2E リポジトリの別工程）
-- `coverage`: バックエンドカバレッジ < 80%（CLAUDE.md 基準。これは合格ライン。`/coverage-to-100` は努力目標であり BLOCK 判定は 80% で行う）、または明確な未テストパスがある
+- `coverage`: バックエンドカバレッジが確定表 #13 の閾値（命令(INSTRUCTION)100% / 分岐(BRANCH)90%、いずれも除外後）を下回る（＝`mvn verify` の jacoco:check が落ちる水準）、フロントエンドが確定表 #10（100%、除外後）を下回る、または明確な未テストパスがある。閾値の正典は各確定表（`backend-00-stack.md` #13 / `frontend-00-stack.md` #10）であり、CLAUDE.md は閾値を持たない。`/coverage-to-100` は不足時の改善手順（旧「80%」基準は廃止）
 - `design_mismatch`: 実装が設計書と矛盾（API パス・メソッド・スキーマの不一致、テーブル定義との不整合）
 - `security`: OWASP ベースの脆弱性点検（PR 作成前に必須）。SQL インジェクション・XSS・**認可バイパス / IDOR・テナント越境（自社外リソースへの参照・操作）**・JWT 検証漏れ（署名・失効・有効期限）・PII / 機密情報のログ・レスポンス出力・入力サニタイズ漏れ・ハードコードされたシークレット。`docs/design/セキュリティテスト観点.md` の観点と対応づけ、未対応があれば BLOCK
 - `architecture`: Controller に業務ロジック、フロントに業務判定、REST 以外の画面描画、`.env` の直接コミット
-- `traceability`: Issue の受け入れ条件 AC-XXX に対応するテストがない、コミットメッセージに Issue 参照（`#N` / `Refs:`）がない
+- `traceability`: Issue の受け入れ条件 **AC-XXX（AC が無い基盤 Issue は設計書「実装内容」項目）に対応する単体テスト（TC-XXX）が 1 件も無い真のカバレッジ穴**（単体マトリクス・RTM を横串で確認して検出）、またはコミットメッセージに Issue 参照（`#N` / `Refs:`）がない。※マトリクス/RTM の **存在・構造**（ファイル有無・TC 行・Issue 行）は produce 段のハードゲート `check-test-matrix.sh ... unit` が担保するため、本観点は **単体カバレッジの中身** を見る。結合テスト（IT）のカバレッジは結合テスト工程のレビューが担当
 - `git`: `main` / `master` / `develop` への直接 commit、`.github/workflows/**` の編集（deny ポリシー違反）
 
 ### SUGGEST
@@ -80,8 +107,8 @@ feature ブランチの実装差分・設計書との整合・品質ゲート(UT
 - `error_handling`: 例外ハンドリングが粗い（catch して握り潰し、ログだけ）
 - `performance`: N+1 クエリ、不要なレンダリング、未使用 import
 - `i18n`: ハードコードされた日本語メッセージで国際化未対応（要件で求められている場合）
-- `test_design`: 単体テストマトリクス（`docs/test/単体テストマトリクス.md`）・**結合テストマトリクス（`docs/test/結合テストマトリクス.md`・IT-XXX）**・E2E シナリオ表が AC-XXX と対応づいていない、正常系 / 異常系 / 境界値 / 権限境界 の区分が欠けている、またはテストケース ID（TC-XXX / IT-XXX / E2E-XXX）が採番されていない。単体（Service モック）と E2E の中間（実 DB 結合・サービス間結合）が欠落している場合も指摘する
-- `traceability_matrix`: `docs/test/トレーサビリティマトリクス.md`（RTM）が無い、または今回の Issue / AC-XXX / テスト ID が RTM に反映されていない（カバレッジ漏れの横串検出ができない）
+- `test_design`: 単体マトリクスは **存在する前提**（存在・構造はゲートが担保）で **中身の質** を見る。AC（または実装内容項目）↔ TC-XXX の対応が意味的に妥当でない、正常系 / 異常系 / 境界値 / 権限境界 の **区分網羅が不足**、テスト対象（Service / Validation / 例外）の観点が薄い。※AC に対応する単体テストが **皆無** の場合は SUGGEST ではなく BLOCK（`traceability`）。**結合テスト（IT）の設計品質は本レビューの対象外**（結合テスト工程で評価）
+- `traceability_matrix`: RTM は **存在し当該 Issue 行がある前提**（存在・Issue 行はゲートが担保）で、**単体の横串カバレッジ漏れ** を見る。RTM 上で UC / AC / SCR に対し TC-XXX の対応が部分的 等。※RTM の横串で単体テストの無い AC を発見した場合は BLOCK（`traceability`）。IT-XXX / E2E-XXX 列の整備は各別工程が担当し、本レビューでは未記入でも指摘しない
 - `nonfunc_test`: 設計 `docs/design/非機能テスト計画.md` に定義された非機能要求値（性能・負荷・可用性）の検証が、該当する実装変更に対して計画・実施されていない
 ### NIT
 

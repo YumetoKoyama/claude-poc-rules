@@ -1,9 +1,8 @@
 ---
 name: requirements-loop
 description: 「requirements phase の produce → review → fix → review」の反復ループを最大 max_iterations 回まで回すオーケストレータ。BLOCK 件数が 0 になるか上限到達まで自動で繰り返す。
-disable-model-invocation: true
 argument-hint: <要件素材ファイル/メモのパス>
-allowed-tools: Bash, Read, SlashCommand
+allowed-tools: Bash, Read, Skill
 ---
 
 # requirements loop オーケストレータ
@@ -30,15 +29,15 @@ allowed-tools: Bash, Read, SlashCommand
    - `escalated == true` → 未解決 BLOCK 一覧を表示して人手レビューへ
    - 上記以外 → 次の stage を実行する
 3. **stage に応じて分岐**:
-   - `produce`: 次の SlashCommand を呼ぶ:
+   - `produce`: Skill ツールで次の skill を呼ぶ:
      - `/requirements-from-input` （引数は state.extra_args を渡す）
      - 完了後: `bash ${CLAUDE_SKILL_DIR}/../_common/scripts/advance-state.sh requirements review`
-   - `review`: 次の SlashCommand を呼ぶ:
+   - `review`: Skill ツールで次の skill を呼ぶ:
      - `/review-requirements`
      - 完了後: review skill が生成した review JSON のパス（`.skills-state/requirements/round-N-review.json`）を引数に渡して
        `bash ${CLAUDE_SKILL_DIR}/../_common/scripts/record-review.sh requirements <review-json-path>`
      - record-review.sh が次の stage（done / fix / escalate）を決めて state に書き込む
-   - `fix`: 次の SlashCommand を呼ぶ:
+   - `fix`: Skill ツールで次の skill を呼ぶ:
      - `/fix-requirements`
      - 完了後: `bash ${CLAUDE_SKILL_DIR}/../_common/scripts/advance-state.sh requirements review`（iteration が自動でインクリメントされる）
    - `done` / `escalate`: 何もせず終了サマリを表示
@@ -57,7 +56,7 @@ bash ${CLAUDE_SKILL_DIR}/../_common/scripts/summarize-state.sh requirements
 ## 注意事項
 
 - 必ず冒頭で state を読み、stage に応じて分岐する。**state を無視して何かを書き始めない**。
-- sub-skill 呼び出しは **SlashCommand ツール** で行う（Bash で直接 .md を実行しない）。
+- sub-skill 呼び出しは **Skill ツール** で行う（Bash で直接 .md を実行しない）。
 - review skill が JSON を出さなかった、または不正だった場合は orchestrator を即停止し、ユーザーに報告する。
 - fix skill は BLOCK + SUGGEST を対象に修正する。NIT には触らない（review skill 側で対象外）。
 

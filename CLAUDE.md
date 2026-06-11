@@ -31,7 +31,7 @@
         └─ テスト戦略.md / シナリオ戦略.md / 非機能テスト計画.md / セキュリティテスト観点.md
       review : /review-design
       fix    : /fix-design
-      ※ 結合テストマトリクス(IT)・単体テストマトリクス(TC)・トレーサビリティマトリクス(RTM) は製造フェーズで作成
+      ※ 単体テストマトリクス(TC)・トレーサビリティマトリクス(RTM) は製造フェーズで作成（/test-design-from-issue）。結合テストマトリクス(IT) は製造から分離した結合テスト工程（/integration-test-from-design）で設計・実施する
 
 4. 人手レビュー（設計書の採択）
    └─ 採択前は製造・テスト・Issue 起票のいずれにも進まない
@@ -56,10 +56,15 @@
       GitHub Issue を画面・API・IF・テーブル単位で起票（画面 Issue には prototype 参照を埋め込む）
 
 8. /implement-loop <ISSUE-NUMBER>
-   └─ produce: /implement-from-issue が実装・品質ゲート（UT / 静的解析 を Pattern 2 で並列）・PR 作成
+   └─ produce: /implement-from-issue が実装・品質ゲート（UT / 静的解析 を Pattern 2 で並列）・テスト設計（単体マトリクス＋RTM を 2 タッチ＝実装と並行ドラフト→実装後に実コード整合で確定。/test-design-from-issue）・PR 作成
+      ※ テスト設計の出力は check-test-matrix.sh（phase=unit）のハードゲートを通過しないとコミット/PR に進まない
+      ※ 結合テスト(IT) は製造では設計・実施とも行わず、結合テスト工程（/integration-test-from-design）で別途実施する
       ※ E2E は AWS 環境構築後に E2E リポジトリの別工程とし、現環境では実行しない（/e2e-from-design は凍結中）
       review : /review-implementation がコード差分と品質ゲート結果を評価
       fix    : /fix-implementation が同じ feature ブランチに追加コミット
+
+8.5. /integration-test-from-design <フィーチャ>   ※製造とは別工程（結合テスト）
+   └─ 該当フィーチャの構成 Issue が組み上がった後に、結合テストマトリクス(IT) の設計と @SpringBootTest + Testcontainers での実施を行い、RTM の IT 列を更新する。製造の各 Issue からは呼ばない。check-test-matrix.sh（phase=integration）で検証。
 
 9. 人手レビュー（PR レビューと本番マージ判断）
 ```
@@ -94,6 +99,7 @@
   - バックエンド: `claude-poc-backend/.claude/rules/backend-*.md`（実装規約。ビルド / DB / テスト / 静的解析 / カバレッジ閾値などのスタック確定値も、人間がここに追記して確定する）
   - リポジトリ構成・E2E の所在などの横断決定: `docs/process/リポジトリ構成と移行計画.md` に記録する
 - **未指定時の挙動**: 採用技術が未確定のまま設計フェーズ（`design-from-requirements`）以降に進まない。対象子の `.claude/rules/` 上に「要確定」項目が残る間は中断し、人間に指定を求める。既定値による自動決定は禁止する。
+- **機械的強制**: 確定状況は各子の `.claude/rules/[fe|be]*-00-stack.md`（技術スタック確定表）を正典とし、`design-loop` / `design-from-requirements` は開始前に `.claude/skills/_common/scripts/check-stack-decided.sh` を実行する。`要確定` が残る場合・確定表が存在しない場合（未記載 = 要確定）は exit 1 で設計着手をブロックし、未確定項目の一覧を人間に提示する。
 - **矛盾時の優先順位**: 複数文書・複数選択肢で技術が食い違う場合は、**frontend ルール（`claude-poc-frontend/.claude/rules/frontend-*.md`）を最優先（正）** とし、他（CLAUDE.md の旧記述・設計書・スキル）はそれに合わせる。
 
 ## 開発ルール
@@ -135,8 +141,9 @@
 - フロントエンドとバックエンドの境界は OpenAPI 3.1 で定義した REST API とし、認証は JWT などのトークンベースで CORS 設定を明示する。
 - DB 変更では明示的な migration を作成し、Entity、Repository、DDL、`docs/design/tables/*.md` の整合を保つ。
 - 要件または受け入れ条件（AC-XXX）ごとに、少なくとも 1 つの実行可能なテストへ対応付ける。テストには **テストケース ID（単体は TC-001 形式、E2E は E2E-001 形式・いずれも 3 桁ゼロ埋め）** を採番し、`docs/test/単体テストマトリクス.md` および E2E シナリオ表で AC-XXX・SCR-XXX と相互参照する。各テストは **正常系 / 異常系（入力エラー）/ 境界値 / 権限境界** の区分を明示する。
-- テストは **単体（TC-XXX）/ 結合（IT-XXX）/ E2E（E2E-XXX）** の 3 層で設計する。結合テストは `docs/test/結合テストマトリクス.md` に **結合テストケース ID（IT-001 形式・3 桁ゼロ埋め）** を採番し、Controller→Service→Repository→DB の実結合・サービス間結合（通知発火 × トランザクション境界・排他制御）を AC-XXX・SCR-XXX・API operationId と相互参照する。単体（Service モック）と E2E（ブラウザ）の中間層を埋める。
-- **非機能要件の要求値ごとに少なくとも 1 つの検証**を `docs/design/非機能テスト計画.md` に対応づける（性能・負荷・可用性）。要求値 → 検証方法・目標値・シナリオの対応表を必須とする。脆弱性観点（認可バイパス・IDOR/テナント越境・JWT 改ざん・機微情報のレスポンス/ログ漏えい等）は `docs/design/セキュリティテスト観点.md`（テストデータ設計・全体テスト計画を含めてよい）に整理する（戦略・計画は設計フェーズ、ケース化したマトリクスは製造フェーズ `docs/test/`）。
+- テストは **単体（TC-XXX）/ 結合（IT-XXX）/ E2E（E2E-XXX）** の 3 層で設計する。結合テストは `docs/test/結合テストマトリクス.md` に **結合テストケース ID（IT-001 形式・3 桁ゼロ埋め）** を採番し、Controller→Service→Repository→DB の実結合・サービス間結合（通知発火 × トランザクション境界・排他制御）を AC-XXX・SCR-XXX・API operationId と相互参照する。単体（Service モック）と E2E（ブラウザ）の中間層を埋める。**結合テストの設計（IT マトリクス）と実施は製造から分離した結合テスト工程（`/integration-test-from-design`）が担い、製造（implement-loop）では行わない**（複数 Issue をまたぐため。E2E と同様の切り分け）。
+- 製造フェーズでは、テスト実施（実行・カバレッジ）とは別に **単体テスト設計（マトリクス）を `/test-design-from-issue` で必ず出力する**（2 タッチ＝実装と並行ドラフト→実装後に実コード整合で確定）。`docs/test/単体テストマトリクス.md`(TC) と `docs/test/トレーサビリティマトリクス.md`(RTM) を `check-test-matrix.sh ... unit` で機械検証し、未充足ならコミット/PR に進まない（ハードゲート）。AC-XXX が無い基盤 Issue でも設計書「実装内容」項目を観点化して TC を採番し省略しない。結合テスト(IT) は結合テスト工程の責務。
+- **非機能要件の要求値ごとに少なくとも 1 つの検証**を `docs/design/非機能テスト計画.md` に対応づける（性能・負荷・可用性）。要求値 → 検証方法・目標値・シナリオの対応表を必須とする。脆弱性観点（認可バイパス・IDOR/テナント越境・JWT 改ざん・機微情報のレスポンス/ログ漏えい等）は `docs/design/セキュリティテスト観点.md`（テストデータ設計・全体テスト計画を含めてよい）に整理する（戦略・計画は設計フェーズ、ケース化したマトリクスは `docs/test/`。単体マトリクス(TC)・RTM は製造フェーズ、結合マトリクス(IT) は結合テスト工程）。
 - 要件→設計→Issue→テストの追跡は `docs/test/トレーサビリティマトリクス.md`（RTM）に 1 表で集約する（列: UC / AC / BR / SCR / API operationId / Issue# / TC-XXX / IT-XXX / E2E-XXX）。ペアワイズの追跡（review-design / 各マトリクス）に加え、横串でカバレッジ漏れを検出するための正典とし、Issue 起票・実装ループで更新する。
 - 実装フェーズの品質ゲートには **セキュリティレビュー観点**（OWASP ベース: 認可バイパス・IDOR/テナント越境・機密情報のログ出力・JWT 検証・入力サニタイズ等）を含め、PR 作成前に `review-implementation` の `security` 観点で点検する。`docs/test/セキュリティテスト観点.md` と対応づける。
 - ドキュメントで ID または略号（例: `SCR-001`、`AC-001`、`Q-A1` などの英字プレフィックス + 連番、機能カテゴリ略号、独自の命名コードなど）を導入する場合は、当該ドキュメントの冒頭付近に **凡例（略号一覧表）を必ず明記** する。凡例には少なくとも「略号」「対応する正式名称（日本語）」「補足（必要に応じて）」を含め、新規略号を追加した場合は同じファイル内の凡例を更新する。CLAUDE.md など複数ドキュメントから参照される共通 ID（例: `SCR-XXX` の採番ルール）は CLAUDE.md 側で全体定義し、個別ドキュメント側はそれを参照する形でも可。略号を新規導入する skill / 人手作業は、凡例の出力／更新まで含めて 1 つの成果物として完成させる。
@@ -198,7 +205,7 @@
 ### テスト（docs/test/）
 
 - docs/test/単体テストマトリクス.md（TC-XXX 採番。AC-XXX・BR-XXX・SCR-XXX と相互参照）
-- docs/test/結合テストマトリクス.md（IT-XXX 採番。Controller→Service→Repository→DB 実結合・サービス間結合。AC-XXX・SCR-XXX・API operationId と相互参照）
+- docs/test/結合テストマトリクス.md（IT-XXX 採番。Controller→Service→Repository→DB 実結合・サービス間結合。AC-XXX・SCR-XXX・API operationId と相互参照。**製造ではなく結合テスト工程 `/integration-test-from-design` の成果物**）
 - docs/test/トレーサビリティマトリクス.md（RTM。UC / AC / BR / SCR / API operationId / Issue# / TC-XXX / IT-XXX / E2E-XXX を 1 表に集約しカバレッジ漏れを検出）
 
-> テストの「戦略・計画・観点」（テスト戦略 / シナリオ戦略 / 非機能テスト計画 / セキュリティテスト観点）は設計フェーズ成果物として `docs/design/` に置き、「ケース化したマトリクス」は製造フェーズ成果物として `docs/test/` に置く。
+> テストの「戦略・計画・観点」（テスト戦略 / シナリオ戦略 / 非機能テスト計画 / セキュリティテスト観点）は設計フェーズ成果物として `docs/design/` に置き、「ケース化したマトリクス」は `docs/test/` に置く。**単体テストマトリクス(TC) と RTM は製造フェーズ、結合テストマトリクス(IT) は結合テスト工程**の成果物（実施タイミングが異なるため工程を分ける。E2E はさらに別工程）。

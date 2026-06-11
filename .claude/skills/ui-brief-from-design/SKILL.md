@@ -1,7 +1,6 @@
 ---
 name: ui-brief-from-design
 description: 採択済みの設計書（docs/design/）と要件定義のブランドガイドラインから、Claude Design（claude.ai/design）に投入するための UI 設計ブリーフを「共通ブリーフ + 画面別ブリーフ」の2層構造で生成する。これは UI ブリーフ作成専用であり、設計書本体・実装・テストには手を入れない。
-disable-model-invocation: true
 context: fork
 argument-hint: [設計ディレクトリのパス（省略時は docs/design/）]
 ---

@@ -1,7 +1,6 @@
 ---
 name: e2e-from-design
 description: 設計書から Playwright MCP 前提の E2E テストを作成し、失敗シナリオは根本原因を調査して修正するときに使う。画面フローと業務フローの E2E 自動化フェーズ向け。
-disable-model-invocation: true
 context: fork
 argument-hint: [設計書パスまたはシナリオ入力]
 ---

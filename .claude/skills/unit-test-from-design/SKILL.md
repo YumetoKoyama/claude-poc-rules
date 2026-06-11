@@ -1,7 +1,6 @@
 ---
 name: unit-test-from-design
 description: 設計書または要件定義書から単体テストを作成し、失敗時は根本原因を調査して修正するときに使う。設計から UT 資産へ落とし込むフェーズ向け。
-disable-model-invocation: true
 context: fork
 argument-hint: [設計書または要件定義書のパス]
 ---

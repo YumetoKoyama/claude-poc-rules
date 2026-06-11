@@ -1,7 +1,6 @@
 ---
 name: fix-design
 description: review-design が生成した review JSON の BLOCK と SUGGEST を docs/design/ に反映する。NIT は無視する。design-loop オーケストレータから呼ばれる。
-disable-model-invocation: true
 context: fork
 allowed-tools: Bash, Read, Glob, Grep, Edit, Write
 ---

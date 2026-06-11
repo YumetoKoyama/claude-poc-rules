@@ -26,7 +26,7 @@ services:
 
     # 入口は init-firewall.sh。許可ドメイン以外への egress を遮断してから、
     # vscode ユーザーとして compose の command を起動する。
-    entrypoint: ["/workspace/.devcontainer/init-firewall.sh"]
+    entrypoint: ["bash", "/workspace/.devcontainer/init-firewall.sh"]
     command: ["sleep", "infinity"]
 
     working_dir: /workspace

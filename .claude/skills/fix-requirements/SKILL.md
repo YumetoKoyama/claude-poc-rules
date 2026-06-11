@@ -1,7 +1,6 @@
 ---
 name: fix-requirements
 description: review-requirements が生成した review JSON の BLOCK と SUGGEST を docs/requirements/ に反映する。NIT は無視する。requirements-loop オーケストレータから呼ばれる。
-disable-model-invocation: true
 context: fork
 allowed-tools: Bash, Read, Glob, Grep, Edit, Write
 ---

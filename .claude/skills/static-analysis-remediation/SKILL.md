@@ -1,7 +1,6 @@
 ---
 name: static-analysis-remediation
 description: バックエンド（Spring Boot）とフロントエンド（React）の双方に対し、設定済みの静的解析を実行し、報告された問題を最小限で妥当な修正へ落とし込むときに使う。品質ゲートやスタイルチェック失敗時向け。
-disable-model-invocation: true
 context: fork
 argument-hint: [モジュールまたは解析対象]
 ---
