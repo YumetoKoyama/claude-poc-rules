@@ -86,6 +86,31 @@ argument-hint: [対象: backend|frontend|batch|all（既定 all）] [フィー�
   - Entity⇔DTO⇔OpenAPI スキーマのマッピング整合: フィールドの欠落・型のずれ・nullable/必須の食い違い・変換ロジック（Mapper）の片寄り
   - 共通型の不統一: ID（String/Long 混在）・日時（LocalDateTime/Instant/タイムゾーン）・金額（BigDecimal/int）・ページング型などが Issue により異なる
   - 循環依存（パッケージ間・モジュール間）、デッドコード（どこからも参照されないクラス・メソッド・エンドポイント。設計逸脱の残骸の可能性として観点 A と突合）
+- **アプリ起動配線（startup_wiring）**: 「○○から呼び出すこと」「一度だけ呼び出す」「注入する」等の注釈付き初期化関数・Provider・設定関数が、実際の本番起動パス（フロントなら `app/layout.tsx` 等、バックエンドなら `main()` や起動 Bean 等）で呼ばれているかを全量確認する。テストコードの `beforeEach` でのみ初期化されており本番起動パスに呼び出しがない場合は **BLOCK**（`startup_wiring`）として報告する。チェック手順:
+  ```bash
+  # 1. 「呼び出しが必要」系の注釈を持つエクスポートを全量抽出
+  grep -rn "呼び出す\|一度だけ\|once.*call\|init.*inject\|注入する" \
+    --include="*.ts" --include="*.tsx" --include="*.java" \
+    <対象リポ>/src/ | grep -v "__tests__\|\.test\.\|\.spec\.\|/test/"
+  # 2. 抽出された関数名を本番起動パスで grep して呼び出し有無を確認
+  grep -rn "<関数名>" <対象リポ>/src/ | grep -v "__tests__\|\.test\.\|\.spec\.\|/test/"
+  ```
+- **バリデーター型整合（validator_type_compatibility）**: カスタム `ConstraintValidator<A, T>` の型パラメーター `T` が、`@A` アノテーションを付与するフィールドの実際の型と一致するかを全量確認する。不一致は Hibernate Validator が実行時に `HV000030: No validator could be found` を投げて 500 エラーになる（コンパイル・静的解析では検出されない）。チェック手順:
+  ```bash
+  # BE: ConstraintValidator 実装を全量抽出し、アノテーション名を特定
+  grep -rn "implements ConstraintValidator<" <リポ>/src/main --include="*.java"
+  # 特定したアノテーション名でフィールド付与箇所を検索し型を確認
+  grep -rn "@<アノテーション名>" <リポ>/src/main --include="*.java" -A1
+  ```
+  型不一致が 1 件でもあれば **BLOCK**（`validator_type_compatibility`）。
+- **コントローラーテスト MockMvc 確認（controller_test_style）**: `@Valid @RequestBody` を持つコントローラーメソッドのテストが `MockMvc.perform()` 経由でリクエストを送信しているかを全量確認する。コントローラーを直接呼び出す（`controller.method(req, user)` 形式）テストのみの場合、Bean Validation（`@Valid`）がテスト時に実行されず、カスタムバリデーターの型不一致・制約違反が検出されない。チェック手順:
+  ```bash
+  # @Valid @RequestBody を持つメソッドを特定
+  grep -rn "@Valid\|@RequestBody" <リポ>/src/main --include="*.java" -l
+  # 対応するテストクラスで MockMvc が使われているか確認
+  grep -rn "mockMvc\.perform\|MockMvcRequestBuilders" <リポ>/src/test --include="*.java"
+  ```
+  MockMvc テストが 1 件も無いコントローラーがあれば **SUGGEST**（`controller_test_style`）。
 
 #### 観点 C: セキュリティ横断（security / authorization）
 
@@ -201,7 +226,7 @@ git -C <リポ> push -u origin docs/review-overall-<YYYYMMDD>
 ## 出力 JSON スキーマ
 
 review-requirements と同じ構造。`phase: "overall"`、`iteration` は常に `1`（ループなし）。`findings[].path` は親アンブレラからの相対パス（リポ名前置。例: `claude-poc-backend/src/...`）。`category` は次を使う:
-`design_coverage | design_mismatch | cross_issue_consistency | cross_repo_consistency | type_consistency | duplication | architecture | security | authorization | traceability | rtm_gap | naming | error_handling | quality_gate | style | typo`
+`design_coverage | design_mismatch | cross_issue_consistency | cross_repo_consistency | type_consistency | duplication | architecture | security | authorization | traceability | rtm_gap | naming | error_handling | quality_gate | style | typo | startup_wiring | validator_type_compatibility | controller_test_style`
 
 ## 注意事項
 

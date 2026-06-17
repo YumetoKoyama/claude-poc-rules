@@ -41,6 +41,30 @@ feature ブランチの実装差分・設計書との整合・品質ゲート(UT
    - フロントエンド: `npm test` の Vitest / Jest 結果、Istanbul カバレッジ、ESLint / TypeScript 型チェック
    - テスト設計マトリクス（単体）: `bash .claude/skills/_common/scripts/check-test-matrix.sh docs/test <ISSUE> unit` を実行し、**存在・構造**（単体マトリクスの TC 行・RTM の Issue 行）を確認する。exit 1 なら category=`quality_gate` の BLOCK（produce 段でゲートが回っていない）。存在が確認できたら、レビューは以降の観点で **単体テストの中身のカバレッジ** を評価する。※**結合テスト（IT-XXX）は本レビューの対象外**（設計・実施とも結合テスト工程＝`/integration-test-from-design` が担い、その工程のレビューで評価する）。
 5. **コードレビュー**: 差分ファイルを Read し、設計書と突き合わせる
+5.4. **起動配線チェック（必須）**: 差分に「初期化が必要なモジュール」が含まれる場合、起動側の呼び出しが存在するかを確認する。
+   ```bash
+   # 「呼び出すこと」系のコメントを持つエクスポートを特定
+   git diff main...HEAD -- '*.ts' '*.tsx' '*.java' | grep -E '呼び出す|一度だけ|once.*call|init.*inject|注入する' | grep -v '^-'
+   ```
+   上記で検出された関数・クラスについて、本番起動パス（`app/layout.tsx`・`RootLayout`・`main()` 等）での呼び出しが差分または既存コードに存在するかをGrepで確認する。テストの `beforeEach` だけに呼び出しが存在する場合は category=`wiring` の BLOCK とする。
+5.6. **バリデーター型整合チェック（必須）**: 差分に `ConstraintValidator` または Bean Validation アノテーション（`@Valid`・カスタム `@Annotation`）が含まれる場合、バリデーター型パラメーターとフィールド型の整合を確認する。
+   ```bash
+   # ① 差分に追加・変更された ConstraintValidator 実装を抽出
+   git diff main...HEAD -- '*.java' | grep -E "implements ConstraintValidator<" | grep -v '^-'
+   # ② 差分に追加・変更されたフィールドのアノテーションを抽出
+   git diff main...HEAD -- '*.java' | grep -E "^\+.*@[A-Z][a-zA-Z]+" | grep -v '^-'
+   ```
+   `ConstraintValidator<Annotation, T>` の `T` が `@Annotation` を付与するフィールドの実際の型（`OffsetDateTime`・`String` 等）と一致するかを確認する。不一致（例: `ConstraintValidator<FutureDatetime, LocalDateTime>` を `OffsetDateTime` フィールドに適用）は Hibernate Validator が実行時に `HV000030: No validator could be found` を投げて 500 エラーになる。コンパイル・静的解析では検出されない。不一致が 1 件でもあれば category=`validator_type` の BLOCK とする。
+5.7. **コントローラーテスト MockMvc チェック（推奨）**: 差分に `@Valid @RequestBody` を持つコントローラーメソッドが含まれる場合、対応するテストが `MockMvc.perform()` 経由でリクエストを送信しているかを確認する。
+   ```bash
+   # ① 差分のコントローラーに @Valid @RequestBody が含まれるか
+   git diff main...HEAD -- '*/presentation/*.java' | grep -E "@Valid|@RequestBody" | grep -v '^-'
+   # ② 対応するテストクラスに MockMvc 使用箇所があるか
+   git diff main...HEAD -- '*Test.java' '*Tests.java' | grep -E "mockMvc|MockMvcRequestBuilders|\.perform\(" | grep -v '^-'
+   # ③ コントローラーメソッドを直接呼び出しているテストがあるか
+   git diff main...HEAD -- '*Test.java' '*Tests.java' | grep -E "controller\.[a-z][a-zA-Z]+\(" | grep -v '^-'
+   ```
+   `@Valid @RequestBody` を持つメソッドのテストがコントローラー直呼び出し（`controller.method(req, user)`）のみの場合、Spring MVC の HandlerMethodArgumentResolver が動かないため Bean Validation が一切実行されない。カスタムバリデーターの型不一致など実行時エラーがテストで検出されなくなる。MockMvc テストが 1 件も無い場合は category=`test_design` の SUGGEST として報告する。
 5.5. 切断チェック（必須）: 差分ファイルを切断・破損の観点で機械的に検出し、得られた findings を自分の review JSON に取り込む。
    ```bash
    FILES=$(git diff --name-only main...HEAD | tr '\n' ' ')
@@ -98,6 +122,8 @@ feature ブランチの実装差分・設計書との整合・品質ゲート(UT
 - `security`: OWASP ベースの脆弱性点検（PR 作成前に必須）。SQL インジェクション・XSS・**認可バイパス / IDOR・テナント越境（自社外リソースへの参照・操作）**・JWT 検証漏れ（署名・失効・有効期限）・PII / 機密情報のログ・レスポンス出力・入力サニタイズ漏れ・ハードコードされたシークレット。`docs/design/セキュリティテスト観点.md` の観点と対応づけ、未対応があれば BLOCK
 - `architecture`: Controller に業務ロジック、フロントに業務判定、REST 以外の画面描画、`.env` の直接コミット
 - `traceability`: Issue の受け入れ条件 **AC-XXX（AC が無い基盤 Issue は設計書「実装内容」項目）に対応する単体テスト（TC-XXX）が 1 件も無い真のカバレッジ穴**（単体マトリクス・RTM を横串で確認して検出）、またはコミットメッセージに Issue 参照（`#N` / `Refs:`）がない。※マトリクス/RTM の **存在・構造**（ファイル有無・TC 行・Issue 行）は produce 段のハードゲート `check-test-matrix.sh ... unit` が担保するため、本観点は **単体カバレッジの中身** を見る。結合テスト（IT）のカバレッジは結合テスト工程のレビューが担当
+- `wiring`: アプリ起動配線の欠落。本 Issue で追加・変更したモジュールに「○○から呼び出すこと」「一度だけ呼び出す」「注入する」等の注釈付き初期化関数・Provider・設定関数が含まれる場合、対応する起動側（`layout.tsx`・`Providers`・`main()` 等）での呼び出しが差分に含まれているかを確認する。テストコードの `beforeEach` でのみ初期化されており本番起動パスに呼び出しがない場合は BLOCK
+- `validator_type`: `ConstraintValidator<A, T>` の型パラメーター `T` と `@A` アノテーション付与フィールドの実際の型が不一致。Hibernate Validator が実行時に `HV000030: No validator could be found` を投げて 500 エラーになる。コンパイル・静的解析では検出されないため手動確認が必須（手順: ステップ 5.6）
 - `git`: `main` / `master` / `develop` への直接 commit、`.github/workflows/**` の編集（deny ポリシー違反）
 
 ### SUGGEST
@@ -117,7 +143,7 @@ feature ブランチの実装差分・設計書との整合・品質ゲート(UT
 
 ## 出力 JSON スキーマ
 
-review-requirements と同じ。`phase: "implement"`、`category` には上記カテゴリを使う。
+review-requirements と同じ。`phase: "implement"`、`category` には上記カテゴリを使う。追加カテゴリ: `wiring`（アプリ起動配線の欠落）、`validator_type`（ConstraintValidator 型不一致）。
 
 ## 注意事項
 
