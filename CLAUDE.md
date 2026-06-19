@@ -177,7 +177,7 @@
 
 - docs/design/概要.md
 - docs/design/screens/画面遷移.md（Mermaid 画面遷移図）
-- docs/design/screens/[scr-id]-[画面名].md（画面ごとに 1 ファイル、`SCR-XXX-画面名.md` 形式の日本語名、画面 ID 明記）
+- docs/design/screens/[scr-id]-[画面名].md（**画面仕様書**。画面ごとに 1 ファイル、`SCR-XXX-画面名.md` 形式の日本語名、画面 ID 明記。1 画面 = 1 ファイルに 表紙 / 改訂履歴 / 画面概要 / 画面遷移 / 画面レイアウト（ワイヤーフレーム + ボタン定義表）/ 表示項目（エリアごとの項目定義表）/ 機能概要 / イベント一覧 / 振る舞い定義（Given-When-Then + Mermaid 処理フロー）/ 業務ルール / メッセージ（MSG-XXX）/ 権限マトリクス / テーブルアクセス / 未解決事項（OQ-XXX）を内包する。章構成の正典は `design-from-requirements/design-spec-template.md`。物理 DDL/SQL は `tables/*.md`・`DB定義.md`、API スキーマは `api/*.yaml` を正典とし、画面仕様書からは参照する（レガシー由来の Legacy Source 表・SQL定義・DTO↔DB データマッピング・移行ノートは出力しない））
 - docs/design/sequences/[シーケンス名].md（主要シーケンスごとに 1 ファイル、`応募確定.md` 等の日本語名、SEQ-XXX 採番 + Mermaid `sequenceDiagram`）
 - docs/design/api/_common.yaml（API 共通スキーマ、OpenAPI 3.1 components）
 - docs/design/api/[リソース名].yaml（リソースごとに 1 ファイル、`[resource].yaml` 形式の kebab-case 英語、OpenAPI 3.1 準拠。例: `jobs.yaml`, `users.yaml`, `applications.yaml`）
