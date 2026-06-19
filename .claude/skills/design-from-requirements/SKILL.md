@@ -25,7 +25,7 @@ argument-hint: [要件定義ディレクトリのパス（省略時は docs/requ
 設計書は 1 ファイルにまとめず、以下のファイルに分けて出力する。
 
 - `docs/design/概要.md` — スコープ要約・前提条件・ユースケース・リスク（要件定義をもとに要約）
-- `docs/design/screens/[画面名].md` — 画面設計（**画面ごとに 1 ファイル**、`SCR-XXX-画面名.md` 形式の日本語名、ファイル冒頭に画面 ID を記載）
+- `docs/design/screens/[画面名].md` — **画面仕様書**（**画面ごとに 1 ファイル**、`SCR-XXX-画面名.md` 形式の日本語名）。1 画面 = 1 ファイルに、表紙 / 改訂履歴 / 画面概要 / 画面遷移 / 画面レイアウト（ワイヤーフレーム + ボタン定義）/ 表示項目（エリアごとの項目定義表）/ 機能概要 / イベント一覧 / 振る舞い定義（Given-When-Then + Mermaid 処理フロー）/ 業務ルール / メッセージ（MSG-XXX）/ 権限マトリクス / テーブルアクセス / 未解決事項（OQ-XXX）を **この順序で** 内包する。詳細な章構成と記入例は [design-spec-template.md](design-spec-template.md) を正典とする。レガシー由来章（Legacy Source 表・SQL定義・DTO↔DB データマッピング・移行ノート）は出力しない
 - `docs/design/screens/画面遷移.md` — 画面遷移図（Mermaid、画面 ID 表記）
 - `docs/design/sequences/[シーケンス名].md` — シーケンス設計（**主要シーケンスごとに 1 ファイル**、`応募確定.md` 等の業務用語の日本語名、SEQ-XXX 採番、Mermaid `sequenceDiagram`、対応する SCR/UC/ACT/API/AC を明示）
 - `docs/design/api/_common.yaml` — API 共通スキーマ（OpenAPI 3.1 components）
@@ -47,8 +47,8 @@ argument-hint: [要件定義ディレクトリのパス（省略時は docs/requ
 ## 指示
 
 1. `docs/requirements/概要.md` を最初に読み、スコープと前提を把握する。
-2. `docs/requirements/画面一覧.md` の画面 ID（SCR-XXX）一覧を読み、すべての画面について `docs/design/screens/[画面名].md` を作成する。
-3. 画面設計ファイルの冒頭には **画面 ID** と **画面名** を見出しに明記する（例: `# 画面設計: SCR-001 ログイン画面`）。
+2. `docs/requirements/画面一覧.md` の画面 ID（SCR-XXX）一覧を読み、すべての画面について `docs/design/screens/[画面名].md` を **画面仕様書形式**で作成する。
+3. 画面仕様書は 1 画面 = 1 ファイルとし、冒頭見出しに **画面 ID** と **画面名** を明記する（例: `# 画面仕様書: SCR-001 ログイン画面`）。各ファイルには [design-spec-template.md](design-spec-template.md) の画面仕様書テンプレートに従い、表紙 / 改訂履歴 / 画面概要 / 画面遷移 / 画面レイアウト（ワイヤーフレーム + ボタン定義表）/ 表示項目（エリアごとの項目定義表）/ 機能概要 / イベント一覧 / 振る舞い定義（Given-When-Then + Mermaid `flowchart` の処理フロー + 処理の流れ）/ 業務ルール / メッセージ / 権限マトリクス / テーブルアクセス / 未解決事項を含める。該当しない章も「なし」と理由を明記し、章自体を欠落させない。表示項目・イベント・業務ルール・メッセージは要件（AC / BR / MSG）と相互参照し、API は `api/*.yaml` の operationId、テーブルは `tables/*.md` を参照する（画面仕様書に SQL・物理 DDL は書かない）。レガシー由来章（Legacy Source 表・SQL定義・DTO↔DB データマッピング・移行ノート）は出力しない。
 4. 画面遷移は `docs/design/screens/画面遷移.md` に Mermaid（`flowchart` 推奨）で必ず描く。ノードは画面 ID を使う。
 4.5. **主要なシーケンス**（複数コンポーネント間の交互動作が発生する業務、応募確定・合意成約・運送ステータス確定・評価完了 等）について、`docs/design/sequences/[シーケンス名].md` を 1 シーケンス 1 ファイルで作成する。ファイル名は業務用語の日本語名（例: `応募確定.md`）。各ファイルで SEQ-XXX を採番し、Mermaid `sequenceDiagram` でフロントエンド ↔ API ↔ DB（必要に応じて外部システム）の交互動作を描く。対応する画面（SCR-XXX）・ユースケース（UC-XXX）・業務フロー（ACT-XXX）・API（operationId）・受け入れ条件（AC-XXX）を必ず引用する。
 5. API は **OpenAPI 3.1 準拠の YAML** でリソースごとに 1 ファイルを作成する（`docs/design/api/[リソース名].yaml`）。同じリソースに属する複数の HTTP メソッド・パスは同一ファイル内の `paths:` 配下にまとめる。
@@ -72,7 +72,7 @@ argument-hint: [要件定義ディレクトリのパス（省略時は docs/requ
 ## 完了条件
 
 - `docs/design/` 以下に上記のファイル構成で設計成果物が出力されている。
-- 画面ごとに個別ファイルが作成され、画面 ID が明記されている。
+- 画面ごとに個別ファイルが作成され、画面 ID が明記されている。各画面仕様書が表紙 / 改訂履歴 / 画面概要 / 画面遷移 / 画面レイアウト（ボタン定義含む）/ 表示項目 / 機能概要 / イベント一覧 / 振る舞い定義 / 業務ルール / メッセージ / 権限マトリクス / 未解決事項の各章を備えている（該当なしは明記）。レガシー由来章は含まれていない。
 - `docs/design/screens/画面遷移.md` に Mermaid 画面遷移図が存在する。
 - `docs/design/sequences/` 配下に主要シーケンスごとの `[シーケンス名].md` が作成され、SEQ-XXX が採番され、対応する SCR/UC/ACT/API/AC が引用されている。
 - API は OpenAPI 3.1 YAML としてリソース単位に分割されており（1 ファイルに同リソースの全メソッドを集約）、共通スキーマは `_common.yaml` に集約されている。
