@@ -76,7 +76,6 @@ allowed-tools: Bash, Read, Glob, Grep, Write
 
 - `traceability`: 要件 SCR-XXX / UC-XXX / ACT-XXX / BR-XXX / AC-XXX のいずれかが設計書側で**参照されていない**、または存在しない ID を参照
 - `completeness`: 画面ファイル不足（画面一覧.md にあるが個別 md がない）、API YAML 不足、テーブル md 不足、**シーケンスファイル不足**（要件で複数コンポーネント間の交互動作が想定される業務に対応する `sequences/*.md` が無い）。とくに **分岐を持つ業務アクティビティ（ACT-XXX）** に対応するシーケンスが 1 件も無い場合は BLOCK
-- `screen-spec`: `screens/*.md` が **画面仕様書テンプレート（design-spec-template.md）の必須章を欠落**している。各画面仕様書は 表紙 / 改訂履歴 / 画面概要 / 画面遷移 / 画面レイアウト（ボタン定義表を含む）/ 表示項目 / 機能概要 / イベント一覧 / 振る舞い定義 / 業務ルール / メッセージ / 権限マトリクス を備える必要がある（テーブルアクセス・未解決事項は DB アクセス・論点が無ければ「なし」明記で可）。「画面概要・表示項目・振る舞い定義・権限マトリクス」のいずれかが無い場合は BLOCK。振る舞い定義に Given/When/Then または Mermaid 処理フローが 1 つも無い場合も BLOCK。レガシー由来章（Legacy Source 表・SQL定義・DTO↔DB データマッピング・移行ノート）が画面仕様書に出力されている場合も BLOCK（物理 DDL/SQL は `tables/*.md`・`DB定義.md`、API スキーマは `api/*.yaml` を正典とすべき）
 - `openapi`: OpenAPI YAML が 3.1 規格に違反、`info.description` に関連要件/画面が未記載、`_common.yaml` の共通スキーマを `$ref` せず重複定義
 - `db`: `DB定義.md` に全体 ER 図がない（Mermaid `erDiagram` が必要）、テーブル md に部分 ER 図がない、外部キー先のテーブルが未定義
 - `screen-transition`: 画面遷移図のノードが SCR-XXX 形式でない、参照画面が存在しない
@@ -101,7 +100,6 @@ allowed-tools: Bash, Read, Glob, Grep, Write
 - `nonfunc-test`: `非機能テスト計画.md` が無い／非機能要求値に対する検証方法の対応表が無い。または `セキュリティテスト観点.md`（認可バイパス・テナント越境・JWT 改ざん・機微情報漏えい等）が無い
 - `message-trace`: 設計の ErrorResponse コード・通知/メール文面が、要件 `メッセージ一覧.md`（MSG-XXX）・`コード値定義.md`・`通知・文面定義.md` と相互参照されていない（コード値 enum と `_common.yaml` の対応含む）
 - `sequence`: SEQ-XXX 採番済みだが例外フロー・代替フローの記述が不足、または対応する AC-XXX 引用が一部欠落
-- `screen-spec`: 画面仕様書の必須章は揃っているが補助章が薄い（機能概要・イベント一覧・テーブルアクセスのいずれかが空、表示項目に「対応API項目／参照テーブル」列の記入漏れ、メッセージが要件 MSG-XXX と未対応、ボタン定義表が無い等）
 - `legend`: 要件定義で定義済みの ID（`SCR-XXX` / `UC-XXX` / `ACT-XXX` / `AC-XXX` / `BR-XXX` 等）を引用しているが、出典への参照（リンク／パス）が無い
 
 ### NIT
