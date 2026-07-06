@@ -167,15 +167,23 @@ for path in sorted(glob.glob(os.path.join(tables_dir, "*.md"))):
 # (2) db-contract : tables ↔ api の型/桁/enum 突合（PyYAML があれば実施）
 # ----------------------------------------------------------------------------
 def collect_api_props(api_dir):
-    """同名フィールド -> {maxLength:set, enum:set, types:set} を集約（保守的）。"""
-    props = {}
+    """フィールド -> {maxLength:set, enum:set, types:set} を 2 系統で集約する:
+      - props        : 全 YAML 横断のグローバル集約（従来と同じ。対応リソースが特定できない表の fallback 用）
+      - by_resource  : YAML ファイル stem（=リソース名）別の集約。
+    同名フィールドが複数リソースで別桁を正当に持つ場合（例: application.note=500 / job.note=1000）に、
+    グローバル集約だけで突合すると cross-resource の桁不一致を誤検知する（D-* / MEMORY.md 記録の偽陽性）。
+    テーブル md と同名の API リソースがあれば by_resource を優先突合し、この誤検知を排除する。
+    戻り値: (props, by_resource)。PyYAML 不在時は (None, None)。
+    """
     try:
         import yaml  # PyYAML
     except Exception:
-        return None
+        return None, None
+    props = {}
+    by_resource = {}
     if not os.path.isdir(api_dir):
-        return {}
-    def walk(schema):
+        return {}, {}
+    def walk(schema, bucket):
         if not isinstance(schema, dict):
             return
         p = schema.get("properties")
@@ -184,22 +192,26 @@ def collect_api_props(api_dir):
                 if not isinstance(spec, dict):
                     continue
                 key = norm(fname)
-                d = props.setdefault(key, {"maxLength": set(), "enum": set(), "types": set()})
-                if isinstance(spec.get("maxLength"), int):
-                    d["maxLength"].add(spec["maxLength"])
-                if isinstance(spec.get("enum"), list):
-                    for v in spec["enum"]:
-                        d["enum"].add(str(v))
-                if "type" in spec:
-                    d["types"].add(str(spec["type"]))
-                walk(spec)  # ネスト
+                # グローバルとリソース別の両方に同じ値を積む
+                for store in (props, bucket):
+                    d = store.setdefault(key, {"maxLength": set(), "enum": set(), "types": set()})
+                    if isinstance(spec.get("maxLength"), int):
+                        d["maxLength"].add(spec["maxLength"])
+                    if isinstance(spec.get("enum"), list):
+                        for v in spec["enum"]:
+                            d["enum"].add(str(v))
+                    if "type" in spec:
+                        d["types"].add(str(spec["type"]))
+                walk(spec, bucket)  # ネスト
         if isinstance(schema.get("items"), dict):
-            walk(schema["items"])
+            walk(schema["items"], bucket)
         for k in ("allOf", "oneOf", "anyOf"):
             if isinstance(schema.get(k), list):
                 for sub in schema[k]:
-                    walk(sub)
+                    walk(sub, bucket)
     for f in glob.glob(os.path.join(api_dir, "*.yaml")) + glob.glob(os.path.join(api_dir, "*.yml")):
+        stem = norm(os.path.splitext(os.path.basename(f))[0])
+        bucket = by_resource.setdefault(stem, {})
         try:
             with open(f, encoding="utf-8", errors="replace") as fh:
                 doc = yaml.safe_load(fh)
@@ -210,38 +222,52 @@ def collect_api_props(api_dir):
             schemas = comps.get("schemas", {}) if isinstance(comps, dict) else {}
             if isinstance(schemas, dict):
                 for s in schemas.values():
-                    walk(s)
-    return props
+                    walk(s, bucket)
+    return props, by_resource
 
-api_props = collect_api_props(api_dir)
+api_props, api_by_resource = collect_api_props(api_dir)
 if api_props is None:
     print("INFO: PyYAML 不在のため tables↔api 突合（db-contract）はスキップ（db-schema-completeness のみ実行）", file=sys.stderr)
 else:
     def md_enum_values(raw):
         return set(re.findall(r"[A-Z][A-Z0-9_]{1,}", raw))
     for tname, cols in md_tables.items():
+        # テーブル md と同名の API リソース（api/<tname>.yaml）があれば、それを優先突合スコープにする。
+        # 無ければ従来どおりグローバル集約に fallback する（対応リソースを機械特定できないため）。
+        resource_props = api_by_resource.get(tname)
         for cname, info in cols.items():
-            if cname not in api_props:
+            if resource_props is not None and cname in resource_props:
+                ap = resource_props[cname]; scoped = True
+            elif cname in api_props:
+                ap = api_props[cname]; scoped = False
+            else:
                 continue  # 同名フィールドが API に無ければ突合対象外（保守的）
-            ap = api_props[cname]
             # 桁: VARCHAR(n) vs maxLength
+            #   スコープ内の maxLength 集合の「いずれか」に一致すれば OK（一致するものが皆無のときだけ BLOCK）。
+            #   従来の「1 つでも異なれば BLOCK」は、同名フィールドが別リソースで別桁を持つ場合に
+            #   正当な設計を誤検知していた（cross-resource false positive）。by_resource 優先＋
+            #   集合メンバシップ判定でこれを排除する。
             if info["length"] is not None and ap["maxLength"]:
-                for ml in ap["maxLength"]:
-                    if ml != info["length"]:
-                        findings.append(dict(
-                            severity="BLOCK", path=os.path.join(tables_dir, tname + ".md"), line=1,
-                            category="db-contract",
-                            message=f"「カラム {cname} の桁不一致: tables=VARCHAR({info['length']}) / api maxLength={ml}」",
-                            suggested_fix="tables の桁と api の maxLength を一致させる"))
-                        break
+                if info["length"] not in ap["maxLength"]:
+                    exp = "・".join(str(x) for x in sorted(ap["maxLength"]))
+                    scope_note = tname if scoped else "全 API 横断"
+                    findings.append(dict(
+                        severity="BLOCK", path=os.path.join(tables_dir, tname + ".md"), line=1,
+                        category="db-contract",
+                        message=f"「カラム {cname} の桁不一致: tables=VARCHAR({info['length']}) / api maxLength={exp}（照合スコープ: {scope_note}）」",
+                        suggested_fix="tables の桁と api の maxLength を一致させる"))
             # enum: tables 型欄に enum 列挙がある場合のみ突合
+            #   スコープ確定時（同名リソース）は厳密一致、グローバル fallback 時は部分集合で保守判定
+            #   （プールされた別リソースの enum との等値比較による対称的な誤検知を避ける）。
             mev = md_enum_values(info["type"]) if re.search(r"enum", info["type"], re.IGNORECASE) else set()
-            if mev and ap["enum"] and mev != ap["enum"]:
-                findings.append(dict(
-                    severity="BLOCK", path=os.path.join(tables_dir, tname + ".md"), line=1,
-                    category="db-contract",
-                    message=f"「カラム {cname} の enum 値域不一致: tables={sorted(mev)} / api={sorted(ap['enum'])}」",
-                    suggested_fix="enum 値域を コード値定義.md → _common.yaml → tables で一致させる"))
+            if mev and ap["enum"]:
+                mismatch = (mev != ap["enum"]) if scoped else (not mev.issubset(ap["enum"]))
+                if mismatch:
+                    findings.append(dict(
+                        severity="BLOCK", path=os.path.join(tables_dir, tname + ".md"), line=1,
+                        category="db-contract",
+                        message=f"「カラム {cname} の enum 値域不一致: tables={sorted(mev)} / api={sorted(ap['enum'])}」",
+                        suggested_fix="enum 値域を コード値定義.md → _common.yaml → tables で一致させる"))
 
 # ----------------------------------------------------------------------------
 # (3) db-sequence-consistency : sequences/*.md の SQL ↔ tables/*.md 整合
