@@ -81,7 +81,10 @@ for p in "${paths[@]}"; do
     ng=1; continue
   fi
   # 1. ベースに存在するか
-  if ! git -C "$repo" ls-tree -r --name-only "$base" -- "$rp" | grep -q .; then
+  #    注意: `git ls-tree ... | grep -q .` は pipefail 下で SIGPIPE により
+  #    間欠的に誤検知（141 終了）するため、変数に受けてから空判定する。
+  listing="$(git -C "$repo" ls-tree -r --name-only "$base" -- "$rp" 2>/dev/null || true)"
+  if [[ -z "$listing" ]]; then
     echo "NG: $p はベース($base)に存在しません（未採択／未マージ）"
     ng=1; continue
   fi
