@@ -119,7 +119,8 @@ elif tool == "Bash":
     # 書き込み系動詞（M-12: tee / tee -a を明示。sed -i / リダイレクト / cp / mv / install / truncate / dd）
     write_verb = r"(sed\s+-i|sed\s+--in-place|tee\b(\s+-a)?|>>|>|cp\s|mv\s|install\s|truncate|dd\s)"
     # 正典ターゲット（D-07: .claude/rules/・先頭 rules/・リポ直下 CLAUDE.md）
-    target = r"((^|[^\w./])\.claude/rules/|(^|[^\w./])rules/|(^|/)CLAUDE\.md)"
+    # .claude/rules/ は任意リポで常に正典のため接頭辞（claude-poc-*/ 等のパス前置）を問わず捕捉する
+    target = r"(\.claude/rules/|(^|[^\w./])rules/|(^|/)CLAUDE\.md)"
     if re.search(write_verb + r"[^|;&]*" + target, cmd):
         deny("bash: " + cmd)
     # リダイレクトで正典へ書き込むパターン（>/>> 先が正典）
