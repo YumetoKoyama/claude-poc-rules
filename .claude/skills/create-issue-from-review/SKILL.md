@@ -10,6 +10,13 @@ argument-hint: [指摘テキスト | レビュー結果mdパス [BLOCK|SUGGEST|a
 
 > **位置づけ**: `review-implementation-overall` 等のレビュー指摘を、人手が起票できる Issue 文章に整形する**生成専用**スキル。**`gh issue create` は実行しない**（Claude・skill が自ら Issue 起票・`@claude` コメントをしてはならない、という採択ゲート思想に従う）。起票・`@claude` コメントによる実装開始は人間の明示アクション。
 >
+> **全体レビュー（8.8）からの Issue 化フロー（S10）**: 本スキルは開発フローの **8.8 `/review-implementation-overall`** の後段に位置する。フロー上の処理は次のとおり:
+> 1. `/review-implementation-overall` がフィーチャ横断の指摘（BLOCK/SUGGEST/NIT）を `docs/test/レビュー結果/overall-*.md` と JSON に出力する。
+> 2. 本スキル（`/create-issue-from-review <overall md パス> [BLOCK|SUGGEST|all]`）で、指摘を 1 件 1 Issue の起票文章へ整形する（裏取り → 起票先リポ・ラベル決定 → 文章生成 → md 保存）。
+> 3. **人間が** 提示された gh コマンドで Issue を起票し、対象 Issue に `@claude` をコメントして実装を開始する（採択ゲート＝人間の明示アクション。自動ループは設けない）。
+> 4. 修正は通常の `/implement-loop <ISSUE>` で対応し、必要なら再度 8.8 の全体レビューを回す（review → 修正 → 再 review の人手主導サイクル）。
+> 設計側に起因する指摘（設計⇔実装の食い違いで設計が誤り）は、実装 Issue ではなく docs リポへの設計変更（`/design-amendment`）として扱う方針を本文冒頭の「方針確定（人手）」タスクに明記する。
+>
 > **パス解決（マルチリポジトリ対応）**: 親アンブレラ（claude-poc-rules、カレント直下に `claude-poc-backend/` 等が在る）から実行する想定。設計書・要件は `claude-poc-docs/docs/design/`・`claude-poc-docs/docs/requirements/` を参照する。子リポ直下で実行された場合はリポ相対パス、docs は `../claude-poc-docs/` とする。
 
 入力: $ARGUMENTS
