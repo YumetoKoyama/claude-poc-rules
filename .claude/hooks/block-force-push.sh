@@ -25,13 +25,21 @@
 #   stdout : 通常は無出力で exit 0。ブロック時は permissionDecision=deny の JSON を出力。
 #
 # 注意:
-#   - 依存は bash + python3。python3 が無い場合はフェイルオープン（block-secrets.sh / protect-canon.sh と同方針）。
+#   - 依存は bash + python3。python3 が無い場合は fail-closed（deny。block-secrets.sh / protect-canon.sh と同方針）（D-10）。
 #   - settings.json の deny（前方一致）では --force-with-lease や +refspec を取りこぼすため、本フックで一元化している。
 
 set -u
 
 # --- エスケープハッチ -------------------------------------------------------
 if [ "${ALLOW_FORCE_PUSH:-}" = "1" ]; then
+  exit 0
+fi
+
+# --- D-10: python3 不在時は fail-closed（deny）-----------------------------
+if ! command -v python3 >/dev/null 2>&1; then
+  cat <<'JSON'
+{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"block-force-push: python3 が見つからないため安全側で全 Bash 実行をブロックしました（fail-closed）。python3 を導入するか、人手で操作してください。"}}
+JSON
   exit 0
 fi
 
@@ -51,6 +59,9 @@ if d.get("tool_name", "") != "Bash":
 
 ti = d.get("tool_input", {}) or {}
 cmd = ti.get("command", "") or ""
+# 行継続・パイプ継続の改行を連結してから判定する（C-2 改修）
+cmd = re.sub(r"\\\n", " ", cmd)
+cmd = re.sub(r"([|&])\n", r"\1 ", cmd)
 
 # シェルのセパレータでセグメント分割し、git push のセグメント内だけで判定する
 # （例: `git push origin main && echo --force` の echo 側を誤検出しないため）

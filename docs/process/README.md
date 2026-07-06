@@ -1,6 +1,6 @@
 # AI 駆動開発プロセス
 
-最終更新: 2026-05-27
+最終更新: 2026-06-24
 
 このディレクトリは、本プロジェクト（claude-poc）における AI 駆動開発の運用ガバナンスをまとめたものです。`CLAUDE.md` と `docs/architecture/skill-orchestration.md` がツール・実装レベルの規約であるのに対し、`docs/process/` は **「人と AI のどちらが、いつ、何を、どのように行うか」** という運用レベルの規約を定義します。
 
@@ -22,6 +22,7 @@
 | 4 | [04-development-flow.md](04-development-flow.md) | 開発フロー更新（①〜③を skill オーケストレーションへ統合） | 全員 |
 | 5 | [05-test-process.md](05-test-process.md) | テスト工程（戦略・生成・実行・カバレッジ改善） | QA・開発メンバ |
 | 6 | [06-issue-management.md](06-issue-management.md) | Issue 管理運用（ラベル体系・ステータス遷移・依存関係・レビュー記録） | PM・開発メンバ |
+| — | [リポジトリ構成と移行計画.md](リポジトリ構成と移行計画.md) | リポジトリ分割・移行計画 | PM・開発メンバ |
 
 ## 二層構成（汎用 + プロジェクト固有）
 
