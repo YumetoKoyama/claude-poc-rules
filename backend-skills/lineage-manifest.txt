@@ -1,0 +1,3 @@
+# backend 系統の意図的分岐宣言（check-skills-lineage-sync.sh が参照。P-13）
+# 書式: <系統ルートからの相対パス>   # 理由
+.claude/skills/_common/scripts/gate-content-hash.sh   # 品質ゲートのハッシュ照合(RC-07)。ALLOW パターンが BE スタック固有(pom.xml/gradle等)。将来は引数化して generic 化する候補

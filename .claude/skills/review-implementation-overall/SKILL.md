@@ -63,79 +63,18 @@ argument-hint: [対象: backend|frontend|batch|all（既定 all）] [フィー�
 - **バッチ**: `docs/design/バッチ設計.md`・`IF定義.md` の全バッチ/IF ⇔ batch のジョブ実装
 - **認可**: `docs/design/認可設計.md`（または `セキュリティ設計.md` 内）の operationId × 必要ロール × テナント条件 ⇔ BE の `@PreAuthorize` 等 ⇔ FE のルートガード・ロール別表示制御
 - **テスト**: 各リポの RTM の UC / AC / BR / SCR / API operationId / Issue# / TC-XXX 列 ⇔ 実テストコード
+- **UI handoff（工程#5）**: `ui-design/handoff/README.md` の scr-id → prototype 関数マッピング ⇔ FE 画面コンポーネント実装
 
-### 3. 横断レビュー（5 観点）
+### 3. 横断レビュー（6 観点 + データ連鎖 E2E）
 
-#### 観点 A: 設計書との全体整合（design_coverage / design_mismatch）
+以下の 6 観点（A〜F）でスコープ内の成果物を横断点検する。各観点の詳細な着眼点・検出項目・category 対応は [references/review-aspects.md](references/review-aspects.md) を参照し、適用必須とする。
 
-- 設計に在って実装に無い: 未実装の operationId・テーブル・画面・バッチ（**実装漏れ = BLOCK**）
-- 実装に在って設計に無い: 設計外のエンドポイント・テーブル・カラム・画面・ジョブ（**設計逸脱 = BLOCK**）
-- スキーマ不一致: リクエスト/レスポンス型・enum（`_common.yaml` ⇔ `docs/requirements/コード値定義.md` ⇔ 実装定数）・ErrorResponse 形式・MSG-XXX 文言の食い違い
-- 画面: `screens/SCR-*.md` の項目・バリデーション・遷移（`画面遷移.md`）⇔ FE 実装の突合
-
-#### 観点 B: Issue 横断の整合性（cross_issue_consistency / duplication / architecture / type_consistency）
-
-個別 Issue のレビューでは「その Issue 内では正しい」が、組み上がると不揃いになるものを見る。各リポの `.claude/rules/` を規約の正典として突合する。
-
-- 同種処理の実装パターンの不統一（例外ハンドリング・レスポンス整形・バリデーション・ページング・日時/タイムゾーン扱い・トランザクション境界・FE の状態管理/データ取得パターンが Issue により異なる）
-- 共通部品（`docs/design/共通部品設計.md`・FE 共通コンポーネント）を使うべき箇所での重複実装・独自実装
-- 命名・パッケージ/ディレクトリ構成のばらつき
-- レイヤー責務違反の横断的な傾向（Controller への業務ロジック漏れ、FE への業務判定・データ整形の漏れ＝Service 側に寄せる方針との乖離）
-- **コード構造・型の整合（type_consistency）**: コンパイルは通るが設計として不整合なものを見る（ビルドが通るレベルの型整合は CI 担保のため対象外）
-  - 同一概念の型・enum・定数の二重定義（例: ステータス enum が複数パッケージに別定義、FE での文字列リテラル直書き）
-  - Entity⇔DTO⇔OpenAPI スキーマのマッピング整合: フィールドの欠落・型のずれ・nullable/必須の食い違い・変換ロジック（Mapper）の片寄り
-  - 共通型の不統一: ID（String/Long 混在）・日時（LocalDateTime/Instant/タイムゾーン）・金額（BigDecimal/int）・ページング型などが Issue により異なる
-  - 循環依存（パッケージ間・モジュール間）、デッドコード（どこからも参照されないクラス・メソッド・エンドポイント。設計逸脱の残骸の可能性として観点 A と突合）
-- **アプリ起動配線（startup_wiring）**: 「○○から呼び出すこと」「一度だけ呼び出す」「注入する」等の注釈付き初期化関数・Provider・設定関数が、実際の本番起動パス（フロントなら `app/layout.tsx` 等、バックエンドなら `main()` や起動 Bean 等）で呼ばれているかを全量確認する。テストコードの `beforeEach` でのみ初期化されており本番起動パスに呼び出しがない場合は **BLOCK**（`startup_wiring`）として報告する。チェック手順:
-  ```bash
-  # 1. 「呼び出しが必要」系の注釈を持つエクスポートを全量抽出
-  grep -rn "呼び出す\|一度だけ\|once.*call\|init.*inject\|注入する" \
-    --include="*.ts" --include="*.tsx" --include="*.java" \
-    <対象リポ>/src/ | grep -v "__tests__\|\.test\.\|\.spec\.\|/test/"
-  # 2. 抽出された関数名を本番起動パスで grep して呼び出し有無を確認
-  grep -rn "<関数名>" <対象リポ>/src/ | grep -v "__tests__\|\.test\.\|\.spec\.\|/test/"
-  ```
-- **バリデーター型整合（validator_type_compatibility）**: カスタム `ConstraintValidator<A, T>` の型パラメーター `T` が、`@A` アノテーションを付与するフィールドの実際の型と一致するかを全量確認する。不一致は Hibernate Validator が実行時に `HV000030: No validator could be found` を投げて 500 エラーになる（コンパイル・静的解析では検出されない）。チェック手順:
-  ```bash
-  # BE: ConstraintValidator 実装を全量抽出し、アノテーション名を特定
-  grep -rn "implements ConstraintValidator<" <リポ>/src/main --include="*.java"
-  # 特定したアノテーション名でフィールド付与箇所を検索し型を確認
-  grep -rn "@<アノテーション名>" <リポ>/src/main --include="*.java" -A1
-  ```
-  型不一致が 1 件でもあれば **BLOCK**（`validator_type_compatibility`）。
-- **コントローラーテスト MockMvc 確認（controller_test_style）**: `@Valid @RequestBody` を持つコントローラーメソッドのテストが `MockMvc.perform()` 経由でリクエストを送信しているかを全量確認する。コントローラーを直接呼び出す（`controller.method(req, user)` 形式）テストのみの場合、Bean Validation（`@Valid`）がテスト時に実行されず、カスタムバリデーターの型不一致・制約違反が検出されない。チェック手順:
-  ```bash
-  # @Valid @RequestBody を持つメソッドを特定
-  grep -rn "@Valid\|@RequestBody" <リポ>/src/main --include="*.java" -l
-  # 対応するテストクラスで MockMvc が使われているか確認
-  grep -rn "mockMvc\.perform\|MockMvcRequestBuilders" <リポ>/src/test --include="*.java"
-  ```
-  MockMvc テストが 1 件も無いコントローラーがあれば **SUGGEST**（`controller_test_style`）。
-
-#### 観点 C: セキュリティ横断（security / authorization）
-
-- 認可設計 × 実装の**全 API 突合**: BE の `@PreAuthorize` 漏れ・ロール不一致（**1 件でも BLOCK**）。FE のルートガード・ロール別表示制御の漏れ（FE は UX 層であり防御の正は BE、ただし要件 `権限マトリクス.md` との不整合は指摘）
-- テナント越境: テナントフィルタの適用漏れ箇所の網羅点検、IDOR（ID 直指定での他テナント資源参照）
-- JWT 検証（署名・失効・有効期限）の一貫性、FE のトークン保管方式（`セキュリティ設計.md` との突合）、CORS 設定の整合
-- XSS（FE: `dangerouslySetInnerHTML` 等の生 HTML 挿入）、機微情報のログ・レスポンス・FE バンドルへの漏えい、ハードコードされたシークレット
-- `docs/design/セキュリティテスト観点.md` の各観点に対する実装・テストの対応状況
-
-#### 観点 D: RTM/テスト網羅の横串（traceability / rtm_gap）
-
-- 各リポの RTM を正典として UC / AC / BR / SCR / operationId → TC-XXX の対応を全行点検し、**単体テストが 1 件も無い AC（真のカバレッジ穴）は BLOCK**
-- RTM に行が無い実装済み Issue・operationId・画面（RTM の記載漏れ）
-- マトリクス上の TC-XXX と実テストコードの乖離（採番だけあって実体が無い等）
-- 区分（正常系 / 異常系 / 境界値 / 権限境界）の網羅が薄い領域の指摘
-- ※ IT-XXX / E2E-XXX 列の未整備は**指摘しない**（結合テスト工程・E2E 工程の責務）
-
-#### 観点 E: リポジトリ間整合（cross_repo_consistency）※対象が 2 リポ以上の場合
-
-OpenAPI（`docs/design/api/*.yaml`）を境界の正典として FE⇔BE⇔batch を突合する。
-
-- FE の API クライアントの型・パス・メソッド ⇔ BE の実装の不一致（設計を経由しない「実装同士の暗黙の合意」は設計逸脱として BLOCK）
-- enum・コード値・MSG-XXX 文言の FE/BE での二重定義・食い違い
-- 認可のずれ: BE が拒否するロールの操作が FE で表示・実行可能（またはその逆）
-- batch ⇔ BE の共有テーブル・トランザクション境界・排他制御の整合
+- 観点 A: 設計書との全体整合 + データ連鎖 E2E（design_coverage / design_mismatch / data_sufficiency / code_value_chain）
+- 観点 B: Issue 横断の整合性（cross_issue_consistency / duplication / architecture / type_consistency）
+- 観点 C: セキュリティ横断（security / authorization）
+- 観点 D: RTM/テスト網羅の横串（traceability / rtm_gap）
+- 観点 E: リポジトリ間整合（cross_repo_consistency）※対象が 2 リポ以上の場合
+- 観点 F: UI handoff prototype ⇔ FE 実装の対応（ui_handoff）※工程#5・対象に frontend を含む場合
 
 ### 4. 機械チェック（必須）
 
@@ -226,7 +165,7 @@ git -C <リポ> push -u origin docs/review-overall-<YYYYMMDD>
 ## 出力 JSON スキーマ
 
 review-requirements と同じ構造。`phase: "overall"`、`iteration` は常に `1`（ループなし）。`findings[].path` は親アンブレラからの相対パス（リポ名前置。例: `claude-poc-backend/src/...`）。`category` は次を使う:
-`design_coverage | design_mismatch | cross_issue_consistency | cross_repo_consistency | type_consistency | duplication | architecture | security | authorization | traceability | rtm_gap | naming | error_handling | quality_gate | style | typo | startup_wiring | validator_type_compatibility | controller_test_style`
+`design_coverage | design_mismatch | data_sufficiency | code_value_chain | state_transition | notification | audit_log | type_three_way | ghost_tc | ui_handoff | cross_issue_consistency | cross_repo_consistency | type_consistency | duplication | architecture | security | authorization | traceability | rtm_gap | naming | error_handling | quality_gate | style | typo`
 
 ## 注意事項
 

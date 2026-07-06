@@ -35,6 +35,26 @@ argument-hint: <ISSUE-NUMBER>
    - 関連する設計書ファイルパス（Body に記載されていれば参照）
    - 関連する画面 ID（SCR-XXX）と関連業務ルール（BR-XXX）
 
+#### 1.1. 依存 Issue クローズ確認ゲート（S5・必須）
+
+Issue 本文に `Depends on: #XX`（依存 Issue）の記載があれば、各依存 Issue の状態を確認する。DB→BE API→FE 画面 の順序事故（Entity 不在でコンパイル不可など）を予防するためのハードゲート。
+
+```bash
+# Issue 本文から "Depends on: #NN" を抽出し、各依存 Issue の state を確認
+gh issue view $ARGUMENTS --json body -q .body | grep -Eo 'Depends on:[^\n]*' || true
+gh issue view <依存Issue番号> --json number,state -q '.number,.state'
+```
+
+- 依存 Issue のいずれかが `OPEN`（未クローズ）の場合は **実装を開始せず中断**し、「依存 Issue #XX が未クローズのため着手不可。先に #XX をマージしてください」と報告する。
+- 依存記載が無い場合はそのまま次へ進む。
+
+#### 1.2. Issue 規模の事前評価（S7・コンテキスト溢れ対策）
+
+設計書・Issue 本文から**変更ファイル数を見積もる**（新規 Entity / migration / Controller / Service / Repository / 画面コンポーネント / API クライアント / テストの概算）。
+
+- 見積もりが **30 ファイル超**の場合は、実装に着手せず **分割 ESCALATE**: 「規模過大（推定 NN ファイル）。DB / BE API / FE 画面 等のレイヤ単位、または機能単位に Issue を分割してから再実行してください」と報告して中断する。
+- 30 以下なら次へ進む。各レイヤ（DB/BE/FE）完了時に中間サマリを書き出す（手順4参照）。
+
 ### 2. 要件定義・設計書の確認
 
 - `docs/requirements/` 配下から関連要件を読む
@@ -43,21 +63,14 @@ argument-hint: <ISSUE-NUMBER>
   - 画面 Issue（`type:screen`）: `docs/design/screens/[scr-id]-*.md` と関連 `docs/design/api/*.yaml`
   - API Issue（`type:api`）: `docs/design/api/[リソース名].yaml`（1 ファイルに同リソースの全 HTTP メソッドが集約されているため、1 Issue で全メソッドの実装を扱う。共通参照は `docs/design/api/_common.yaml`）
   - DB Issue（`type:table`）: `docs/design/tables/[テーブル名].md` と全体方針の `docs/design/DB定義.md`
+- **横断設計書を必ず読む（A-2 対策・必読）**: 種別を問わず `docs/design/共通部品設計.md`（共通例外ハンドラ / 共通バリデーション / 共通レスポンス整形 / ロギング / `JwtUtil` / `apiClient.ts` 等）と `docs/design/セキュリティ設計.md`（認可・`@PreAuthorize` 規約・テナントフィルタ。必要に応じ `認可設計.md`）を読み、**定義済みの共通部品を再実装せず再利用する**。再発明は `review-implementation` の `common_component` で BLOCK となる。Issue 本文の「横断設計（必読）」セクションも参照する。
 - 要件定義または設計書が存在しない場合はユーザーに確認を取り、作業を中断する
 
 ### 2.5. プロジェクト初期化チェック（ビルド定義の存在確認・全リポ共通）
 
-実装対象リポジトリの**ビルド定義**が存在するか確認する（Java 系＝`pom.xml` / Node 系＝`package.json`。リポジトリ種別に応じてどちらかが存在すべき）。
+実装対象リポジトリの**ビルド定義**が存在するか確認する（Java 系＝`pom.xml` / Node 系＝`package.json`。リポジトリ種別に応じてどちらかが存在すべき）。存在しない場合は実装を開始せず中断し、事前配置を依頼する。品質 config 群の実在・参照照合（RC-07/D-21）と新規依存の確定表照合・実在性確認（RC-06/D-14）を含む詳細手順は [references/project-init-check.md](references/project-init-check.md) を参照し、適用必須とする。
 
-```bash
-ls pom.xml package.json 2>/dev/null || echo "MISSING"
-```
-
-そのリポジトリに該当するビルド定義（Java は `pom.xml`、Node は `package.json`）と静的解析設定（`config/` 等）が**存在しない**場合は **実装を開始せず中断し、事前配置を依頼する**:
-
-> ビルド定義（`pom.xml` または `package.json`）／静的解析設定が見つかりません。設定一式の事前配置が必要です。対象リポジトリのルートに配置してから再実行してください。
-
-存在する場合はそのまま手順3へ進む（`mvn verify` / `npm run ...` 等が通る前提とし、設定の即興生成はしない）。
+存在確認・config 照合・依存確認のいずれかで NG の場合は中断して事前配置・確定を依頼し、すべて満たしてから手順3へ進む（`mvn verify` / `npm run ...` 等が通る前提とし、設定の即興生成はしない）。
 
 ### 3. ブランチの作成
 
@@ -73,15 +86,7 @@ git checkout -b feature/issue-$ARGUMENTS
 
 ### 3.5. テスト設計ドラフト（実装と並行・設計由来）
 
-実装（手順4）と **並行** して、テスト設計のドラフトを先出しする。入力は設計書（AC-XXX・実装内容項目）であり実装コードに依存しないため、ここで前倒しできる（Pattern 2 の独立性。テストファースト的に実装の指針にもなる）。
-
-```bash
-/test-design-from-issue $ARGUMENTS draft
-```
-
-- `docs/test/` に 単体マトリクス・RTM のドラフトを起こし、TC-XXX と区分（正常系 / 異常系 / 境界値 / 権限境界）を AC（または実装内容項目）から先に決める（**結合テストは別工程**のため対象外）。
-- この時点では実コードとの突合・ハードゲートは行わない。未確定セルは「要整合（実装後）」と明記し、確定は手順5.5 で行う。
-- AC-XXX が無い共通基盤 Issue でも省略しない（設計書「実装内容」項目を観点化）。
+実装（手順4）と **並行** して、テスト設計のドラフトを先出しする。Skill ツールで `test-design-from-issue` を **draft モード**（引数 `$ARGUMENTS draft`）で呼び出す（D-13: slash 表記を地の文で記述し、コードフェンスに置いて Bash 実行させない）。TDD ループからの呼び出し時の注意・ドラフト段階でやること・確定（手順5.5）との関係の詳細は [references/test-design-draft.md](references/test-design-draft.md) を参照し、適用必須とする。
 
 ### 4. 実装（単一セッション・Agent Teams 不使用）
 
@@ -94,21 +99,22 @@ git checkout -b feature/issue-$ARGUMENTS
 2. **バックエンド**: Controller / Service / Repository / Validation / 例外ハンドリング
    - 入力: `docs/design/api/[リソース名].yaml`（共通スキーマは `docs/design/api/_common.yaml`）
    - Controller は薄く保ち、業務ロジックは Service、永続化は Repository に寄せる（CLAUDE.md の設計原則）
-3. **フロントエンド**: React 画面 / ルーティング / コンポーネント / 状態管理 / API クライアント / フォームバリデーション
+3. **フロントエンド**: 画面 / ルーティング / コンポーネント / 状態管理 / API クライアント / フォームバリデーション
    - 入力: `docs/design/screens/[scr-id]-*.md` と `docs/design/api/*.yaml`
-   - 表示は Presentational / Container に分け、API 呼び出しは `src/api/` に集約する
+
+各レイヤの排他制御・例外マッピング・セキュリティ実装値の完全一致・frontend ルール正典・データ連鎖遵守等の詳細規約は [references/layer-implementation-detail.md](references/layer-implementation-detail.md) を参照し、実装時に必ず適用する（適用必須）。
 
 各レイヤー完了ごとに最も狭い検証（コンパイル / 型チェック）を回してから次へ進む。
+
+#### 4.1. 各レイヤ完了時の中間サマリ書き出し（S7・コンテキスト溢れ対策）
+
+DB / BE / FE の各レイヤ完了時に、次レイヤが参照すべき確定情報を**中間サマリファイル**（own リポジトリ直下 `.skills-state/implement/impl-summary-$ARGUMENTS.md`・gitignore 対象）に追記する。長い実装でコンテキストが溢れても、次レイヤはこのファイルを Read して整合を取れる。記載項目・追記コマンド例は [references/layer-implementation-detail.md](references/layer-implementation-detail.md) の「4.1」を参照し、適用必須とする。
 
 ### 5. 品質ゲート（Pattern 2 並列ファンアウト）
 
 実装完了後、次の 3 つの独立した品質チェックを **並列**（Pattern 2 Parallel Fan-Out）で実行する。各チェックは対応する補助 skill の手順に従う。Agent Teams は使わず、互いに独立したチェックの同時実行として並列化する。
 
-| 品質ゲート | 内容 | 参照する補助 skill |
-| --- | --- | --- |
-| 単体テスト | バックエンド: JUnit5 + Mockito + MockMvc / フロントエンド: Vitest（または Jest）+ React Testing Library（カバレッジ閾値は各確定表: BE `backend-00-stack.md` #13 = 命令100%/分岐90%・FE `frontend-00-stack.md` #10 = 100%、いずれも除外後） | `/unit-test-from-design` |
-| 静的解析 | バックエンド: SpotBugs / Checkstyle / PMD / フロントエンド: ESLint / Prettier / TypeScript 型チェック | `/static-analysis-remediation` |
-| セキュリティレビュー | OWASP ベースの自己点検（認可バイパス・IDOR/テナント越境・JWT 検証・機密情報のログ/レスポンス出力・入力サニタイズ）。PR 作成前に必須 | `docs/design/セキュリティテスト観点.md` |
+対象ゲート（単体テスト・静的解析・セキュリティレビュー）の内容・カバレッジ閾値・レポート固定出力パス・ハッシュサイドカーの詳細は [references/quality-gates-detail.md](references/quality-gates-detail.md) を参照し、適用必須とする。
 
 - **E2E は本スキルでは実行しない**（AWS 環境構築後に E2E リポジトリの別工程として実施。`/e2e-from-design` は凍結中で呼び出さない）。
 - **結合テスト（IT-XXX）も本スキルでは設計・実施しない**。結合テストはフィーチャ単位で複数 Issue をまたぐため、設計・実施とも **結合テスト工程**（`/integration-test-from-design`）で行う（E2E と同様の切り分け）。
@@ -116,20 +122,7 @@ git checkout -b feature/issue-$ARGUMENTS
 - すべてのゲートが成功するまで次のステップへ進まない。
 - 失敗時は原因（アプリ側 / テスト側 / 環境）を切り分けて修正し、同じゲートを再実行する。新しい teammate は起動しない。
 - 変更が非機能要件（性能・負荷・可用性）に関わる場合は `docs/design/非機能テスト計画.md` の該当検証を実施し結果を記録する。実装した AC-XXX と **TC-XXX** の対応は own リポジトリの `docs/test/トレーサビリティマトリクス.md`（RTM）に反映する（IT/E2E 列は各別工程が記入）。
-
-#### 品質ゲートのレポート出力パス（固定）
-
-後段の `review-implementation` がレポートの **更新時刻**で「品質ゲートが実際に実行されたか」を判定できるよう、各ゲートは次の固定パスにレポートを出力する。
-
-| ゲート | 出力パス |
-| --- | --- |
-| バックエンド単体テスト | `target/surefire-reports/` |
-| バックエンドカバレッジ（JaCoCo） | `target/site/jacoco/jacoco.xml` |
-| バックエンド静的解析 | `target/`（SpotBugs / Checkstyle / PMD の各レポート） |
-| フロントエンド単体テスト + カバレッジ | `coverage/`（Istanbul） |
-| フロントエンド静的解析 | `eslint-report.json`（ESLint）/ 型チェックは実行ログ |
-
-> 上表は own リポジトリのルートを起点とする（CI は子リポジトリ単体チェックアウトのため `backend/` `frontend/` の接頭辞は付かない）。モジュール構成が異なる場合は実際のモジュールルートに読み替え、出力先を本 skill の実行ログに明記する。
+- **同一 Issue 内で閉じる最小 IT を必須化（RC-07）**: 当該 Issue の範囲で閉じる **トランザクション境界・例外ロールバック整合** の最小結合テスト（例: Service の `@Transactional` メソッドで例外発生時にロールバックされる／コミットされる）を品質ゲートに含めて実施する。**複数 Issue をまたぐ結合（契約スモーク含む）は本スキルでは行わず**、結合テスト工程（`/integration-test-from-design`）に委ねる。契約スモーク（ログイン→主要画面データ取得を実 HTTP で疎通）は integration-test-from-design 側で実施する。
 
 ### 5.5. テスト設計の確定（実コード整合）と出力ゲート（必須）
 
@@ -142,8 +135,9 @@ git checkout -b feature/issue-$ARGUMENTS
 
 finalize で実コード（テストメソッド）と TC-XXX を突合してから、ハードゲートで機械検証する。**exit 0 になるまで手順6（コミット）以降に進まない**。
 
+Skill ツールで `test-design-from-issue` を **finalize モード**（引数 `$ARGUMENTS finalize`）で呼び出す（D-13: slash 表記はコードフェンスに置かず地の文で記述する）。その後、ハードゲートを Bash で実行する:
+
 ```bash
-/test-design-from-issue $ARGUMENTS finalize
 bash .claude/skills/_common/scripts/check-test-matrix.sh docs/test $ARGUMENTS unit
 ```
 
@@ -169,29 +163,7 @@ git push -u origin feature/issue-$ARGUMENTS
 `gh pr create --base main --head feature/issue-$ARGUMENTS --title "feat(#$ARGUMENTS): <Issue タイトル>" --body-file <一時ファイル>` で、以下のテンプレートを本文として PR を作成する。
 PR 本文の `Closes #$ARGUMENTS` により、マージ時に対象 Issue が自動 close される。
 
-```markdown
-## 対応 Issue
-- Closes #$ARGUMENTS
-
-## 概要
-<日本語で機能概要を 3〜5 行で記載>
-
-## 実装内容
-- <変更点 1>
-- <変更点 2>
-
-## 品質チェック結果
-- 静的解析: ✅ 0 violations
-- Unit Test: ✅ <件数> passed（バックエンド: 命令 <xx>% / 分岐 <xx>% ・ フロントエンド: ライン <xx>%、いずれも除外後）
-- テスト設計: ✅ 単体マトリクス(TC)・RTM 更新済み（check-test-matrix unit 通過）
-- ※ 結合テスト(IT) は結合テスト工程（/integration-test-from-design）で別途実施
-- Security Review: ✅ OWASP 観点点検済み
-
-## 関連リンク
-- Issue: #$ARGUMENTS
-- 要件定義: docs/requirements/（claude-poc-docs）
-- 設計書: docs/design/（claude-poc-docs）
-```
+PR 本文テンプレートは [references/pr-template.md](references/pr-template.md) を参照し、その内容で一時ファイルを作成して `--body-file` に渡す（適用必須）。
 
 ### 8. Issue ステータスの更新
 
@@ -200,17 +172,7 @@ PR 本文の `Closes #$ARGUMENTS` により、マージ時に対象 Issue が自
 
 ### 9. 最終報告
 
-以下を Markdown テーブルで報告する。
-
-```
-| 項目 | 値 |
-| --- | --- |
-| Issue | #$ARGUMENTS |
-| ブランチ | feature/issue-$ARGUMENTS |
-| PR URL | https://github.com/<org>/<repo>/pull/<n> |
-| Issue ラベル | status:in-review |
-| 品質チェック | static-analysis ✅ / unit-test ✅ / test-design(unit ゲート) ✅ / security ✅ |
-```
+報告する Markdown テーブルの列構成は [references/pr-template.md](references/pr-template.md) の「最終報告テーブル」を参照する（適用必須）。
 
 その後、人手レビューが必要であることを明記する。
 
@@ -231,4 +193,4 @@ PR 本文の `Closes #$ARGUMENTS` により、マージ時に対象 Issue が自
 - 大きな変更が発生する場合（ファイル数 > 30 等）は事前にユーザーへ確認する
 - 認証情報は環境変数から参照し、リポジトリにコミットしない
 - 製造フェーズの出力（テストマトリクス・RTM・レビュー結果）は **own リポジトリの `docs/test/`** に書く。docs リポジトリ（claude-poc-docs）には書かない（CI で PR に残らないため）
-- `.github/workflows/**` の編集は deny ポリシーで禁止されているため、CI 変更が必要な場合は別 Issue として人手で起票・レビューを通すこと
+- `.github/workflows/**` の編集は deny ポリシーで禁止されているため、CI 変更が必要な場合は別 Issue として人手で起票・レビューを通すこと。
