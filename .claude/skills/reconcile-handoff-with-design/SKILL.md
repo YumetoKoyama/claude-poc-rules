@@ -152,6 +152,7 @@ bash .claude/skills/_common/scripts/validate-review-json.sh .skills-state/ui-rec
 - 「採用」乖離: `impact-analysis-from-change` → `design-amendment` → docs PR 採択 →（起票済みなら）`reopen-issues-from-amendment`。
 - 「棄却」乖離: Claude Design で当該画面を再調整 → Handoff 再格納 → 本スキル再実行。
 - 「課題化」乖離: `docs/requirements/オープン課題.md` へ転記。
+- BLOCK==0 の採択済み handoff が確定したら、`reflect-handoff-to-brand` を実行し、採択されたデザイン決定（色・タイポグラフィ・トークン等）をブランドガイドラインへ逆反映する提案を生成する（Q-BR 系オープン課題のクローズ材料。P-16）。
 ```
 
 - findings は **BLOCK → SUGGEST → NIT** の順。JSON と件数・内容を一致させる。
@@ -164,6 +165,7 @@ bash .claude/skills/_common/scripts/validate-review-json.sh .skills-state/ui-rec
 
 - 本スキルが BLOCK を 1 件でも検出した場合、`create-issues-from-design` へ進んではならない。BLOCK が「採用」なら設計反映（design-amendment → 採択）後に再実行して 0 件を確認、「棄却」なら handoff 再調整後に再実行して 0 件を確認する。
 - 人手で `create-issues-from-design` を起動する運用者向けに、最新の突合レポートで BLOCK==0 であることを起動前提として README に明記する。CI 側でゲートを効かせたい場合は、突合レポート JSON の BLOCK 件数を判定する軽量チェックを `create-issues-from-docs` workflow に追加する（CLAUDE.md RC-13: CI 到達が必要なルールはスキル本文・workflow に多重化する）。
+- BLOCK==0 確定後、`create-issues-from-design` と並行/前後どちらでもよいので `reflect-handoff-to-brand` を 1 回実行し、ブランドガイドライン逆反映の提案を残す（必須ゲートではないが、UI 採択のたびに実行しないと Q-BR 系課題が塞がらない）。
 
 ## 完了条件
 
@@ -196,4 +198,5 @@ bash .claude/skills/_common/scripts/validate-review-json.sh .skills-state/ui-rec
 
 - UI ブリーフ作法: [../ui-brief-from-design/SKILL.md](../ui-brief-from-design/SKILL.md)
 - 変更管理ルート: [../impact-analysis-from-change/SKILL.md](../impact-analysis-from-change/SKILL.md) → [../design-amendment/SKILL.md](../design-amendment/SKILL.md) → [../reopen-issues-from-amendment/SKILL.md](../reopen-issues-from-amendment/SKILL.md)
+- ブランドガイドライン逆反映（BLOCK==0 後）: [../reflect-handoff-to-brand/SKILL.md](../reflect-handoff-to-brand/SKILL.md)
 - Issue 起票（後段ゲート）: [../create-issues-from-design/SKILL.md](../create-issues-from-design/SKILL.md)

@@ -1,9 +1,7 @@
 {
   "env": {
-    "CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS": "1",
     "MAX_MCP_OUTPUT_TOKENS": "50000"
   },
-  "teammateMode": "in-process",
   "permissions": {
     "defaultMode": "bypassPermissions",
     "deny": [

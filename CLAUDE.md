@@ -124,6 +124,7 @@
    └─ Handoff（prototype）と採択済み設計書を突合し、設計外の表示項目・状態・遷移・バリデーション・新規画面・DS/コード値の乖離を BLOCK/SUGGEST/NIT＋対処区分で出力（fix なし・設計/handoff は書き換えない）。検出観点の詳細は skill 本文が正典。
       ├─ 「採用」乖離 → /impact-analysis-from-change → /design-amendment → docs PR 採択 → /reopen-issues-from-amendment
       ├─ 「棄却」乖離 → Claude Design で再調整 → Handoff 再格納 → 本工程を再実行
+      ├─ BLOCK==0 確定後 → /reflect-handoff-to-brand で採択デザイン決定をブランドガイドラインへ逆反映（提案生成のみ・Q-BR 系オープン課題のクローズ材料）
       └─ BLOCK が 0 件になるまで 7（create-issues）へ進まない（ハードゲート）
 
 7. /create-issues-from-design [docs/design/]
@@ -179,7 +180,7 @@
 - **運用手順の詳細**: `docs/process/`（レビュー基準・Issue 管理などの運用ガイド）。
 - **意思決定の記録と計測**: 横断判断（スコープ外・凍結・採否）は `docs/process/decision-log.md` に D-ID で記録（運用: `07-decision-log.md`）。各 *-loop の実績は `loop-metrics.sh` で `docs/process/metrics/` に集計（P-17）。
 - **技術スタックの正典**: 各子リポジトリの `.claude/rules/`（FE: `claude-poc-frontend/.claude/rules/frontend-*.md` / BE: `claude-poc-backend/.claude/rules/backend-*.md`）。フレームワーク・ライブラリ・バージョンはここにのみ記載し、CLAUDE.md・設計書・スキルは再掲せず参照する。矛盾時は frontend ルールを最優先（正）とする。親 `rules/` には横断 AI ルール（`rules/cross-cutting.md`）のみを置く（`docs/process/リポジトリ構成と移行計画.md`）。
-- **正典の保護（機械的強制）**: 親 `rules/` 配下・親 CLAUDE.md・各子リポジトリの `.claude/rules/` 配下は **Claude 実行中の編集を禁止**する（`.claude/hooks/protect-canon.sh` が PreToolUse で Edit/Write/MultiEdit/Bash 書き込みをブロック。パターン `(^|/)rules/` は子の `.claude/rules/` にも合致する）。正典の変更は人手で行う。Claude に編集を手伝わせる場合のみ、`ALLOW_RULES_EDIT=1` を設定したセッションで実行する。スキルの自動実行はフラグを立てないため常にブロックされ、ルールを書き換えて品質ゲートを通すことはできない。
+- **正典の保護（機械的強制）**: 親 `rules/` 配下・親 CLAUDE.md・各子リポジトリの `.claude/rules/` 配下は **Claude 実行中の編集を禁止**する（`.claude/hooks/protect-canon.sh` が PreToolUse で Edit/Write/MultiEdit/Bash 書き込みをブロック。保護対象はリポジトリルート直下の `rules/`・任意リポジトリの `.claude/rules/`・リポジトリ境界直下の `CLAUDE.md` に限定し、業務コード中の任意階層の `.../rules/`（例: `src/domain/rules/`）は保護対象に含めない＝旧 `(^|/)rules/` パターンの過剰ブロックを是正済み。D-07）。正典の変更は人手で行う。Claude に編集を手伝わせる場合のみ、`ALLOW_RULES_EDIT=1` を設定したセッションで実行する。スキルの自動実行はフラグを立てないため常にブロックされ、ルールを書き換えて品質ゲートを通すことはできない。
 - **正典への改善反映（P-09）と 3 系統同期（P-13）**: 正典への改善は直接編集せず `/propose-canon-patch` で差分提案→人手適用（正典: `canon-proposals/README.md`）。スキルは親 generic / FE / BE の 3 系統管理で、意図的分岐は `lineage-manifest.txt` 宣言制・検知は `check-skills-lineage-sync.sh`（正典: `docs/process/08-skills-lineage-sync.md`）。
 - **Agent Teams（experimental の teammate 機能）は使用しない**（RC-09）。並列実行は Pattern 2（Parallel Fan-Out）で代替する。`.claude/settings.json` から `CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS` と `teammateMode` を**削除**して本方針と整合させる（旧 settings に残っていた両キーは矛盾のため除去済み）。`defaultMode` は `bypassPermissions` とし、危険系操作は deny で明示的に封じる。
 
