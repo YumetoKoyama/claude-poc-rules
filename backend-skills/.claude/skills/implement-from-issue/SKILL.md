@@ -35,24 +35,31 @@ argument-hint: <ISSUE-NUMBER>
    - 関連する設計書ファイルパス（Body に記載されていれば参照）
    - 関連する画面 ID（SCR-XXX）と関連業務ルール（BR-XXX）
 
+#### 1.0. 対象リポジトリ種別ガード（マルチリポジトリ対応・必須）
+
+本 skill 系統（backend-skills）は **`claude-poc-backend` リポジトリ専用**であり、フロントエンド（画面）の実装は行わない。取得したラベルが `type:table` / `type:api`（または BE 実装が主体の `type:interface`）以外（`type:screen`）の場合は、**実装を開始せず中断**し「本 Issue は FE リポジトリ（`claude-poc-frontend`）向けです。対象リポジトリを確認してください」と報告する。
+
 #### 1.1. 依存 Issue クローズ確認ゲート（S5・必須・rules 改善）
 
-Issue 本文に `Depends on: #XX`（依存 Issue）の記載があれば、各依存 Issue の状態を確認する。DB→BE API→FE 画面 の順序事故（Entity 不在でコンパイル不可など）を予防するためのハードゲート。
+Issue 本文に `Depends on: #XX`（依存 Issue）の記載があれば、各依存 Issue の状態を確認する。テーブル Issue → API Issue の順序事故（Entity 不在でコンパイル不可など）を予防するためのハードゲート。同一リポジトリ内の依存は `#NN` のみ、他リポジトリへの依存がまれに発生する場合（`create-issues-from-design` の規約）は `<owner>/<repo>#NN` の完全修飾形式で記載される。
 
 ```bash
 gh issue view $ARGUMENTS --json body -q .body | grep -Eo 'Depends on:[^\n]*' || true
+# 同一リポジトリ内の依存
 gh issue view <依存Issue番号> --json number,state -q '.number,.state'
+# 他リポジトリの依存（owner/repo#NN 形式。--repo は付けず完全修飾参照で確認する）
+gh issue view <owner>/<repo>#<依存Issue番号> --json number,state -q '.number,.state'
 ```
 
-- 依存 Issue のいずれかが `OPEN`（未クローズ）の場合は **実装を開始せず中断**し、「依存 Issue #XX が未クローズのため着手不可。先に #XX をマージしてください」と報告する。
+- 依存 Issue のいずれかが `OPEN`（未クローズ）の場合は **実装を開始せず中断**し、「依存 Issue <参照> が未クローズのため着手不可。先にマージしてください」と報告する。
 - 依存記載が無い場合はそのまま次へ進む。
 
 #### 1.2. Issue 規模の事前評価（S7・コンテキスト溢れ対策・rules 改善）
 
-設計書・Issue 本文から**変更ファイル数を見積もる**（新規 Entity / migration / Controller / Service / Repository / 画面コンポーネント / API クライアント / テストの概算）。
+設計書・Issue 本文から**変更ファイル数を見積もる**（新規 Entity / migration / Controller / Service / Repository / テストの概算）。
 
-- 見積もりが **30 ファイル超**の場合は、実装に着手せず **分割 ESCALATE**: 「規模過大（推定 NN ファイル）。DB / BE API / FE 画面 等のレイヤ単位、または機能単位に Issue を分割してから再実行してください」と報告して中断する。
-- 30 以下なら次へ進む。各レイヤ（DB/BE/FE）完了時に中間サマリを書き出す（手順4.1参照）。
+- 見積もりが **30 ファイル超**の場合は、実装に着手せず **分割 ESCALATE**: 「規模過大（推定 NN ファイル）。DB / BE API 等のレイヤ単位、または機能単位に Issue を分割してから再実行してください」と報告して中断する。
+- 30 以下なら次へ進む。各レイヤ（DB/BE）完了時に中間サマリを書き出す（手順4.1参照）。
 
 ### 2. 要件定義・設計書の確認
 
@@ -96,7 +103,7 @@ git checkout -b feature/issue-$ARGUMENTS
 
 > 本プロジェクトは Agent Teams（experimental の teammate 機能）を使用しない（設計方針: [docs/architecture/skill-orchestration.md](../../../docs/architecture/skill-orchestration.md) §1・§8）。実装はこの単一セッション内で設計書に従って進める。
 
-実装前に既存コードを Glob / Grep で調査し、変更影響範囲を特定する。次の順序で進め、同じ Entity / migration に触れる作業を同時に走らせない（依存方向 DB → バックエンド → フロントエンドに沿う）。
+実装前に既存コードを Glob / Grep で調査し、変更影響範囲を特定する。本リポジトリ（BE）は **DB・バックエンド層のみ**を実装する。フロントエンド（画面）は `claude-poc-frontend` リポジトリ側の別 Issue（本 Issue に依存する形で `Depends on:` から参照）で実装される。次の順序で進め、同じ Entity / migration に触れる作業を同時に走らせない。
 
 1. **DB**: migration ファイル / Entity マッピング
    - 入力: `docs/design/tables/[テーブル名].md` と `docs/design/DB定義.md`
@@ -104,15 +111,12 @@ git checkout -b feature/issue-$ARGUMENTS
    - 入力: `docs/design/api/[リソース名].yaml`（共通スキーマは `docs/design/api/_common.yaml`）
    - バックエンド実装時の API モデル（DTO）使用規約・セキュリティ/バリデーション要件付与の分担・動的クエリ（Criteria API/Specification）・ファイルアップロード検証等の詳細は [references/layer-implementation-detail.md](references/layer-implementation-detail.md) を参照し、適用必須とする。
    - Controller は薄く保ち、業務ロジックは Service、永続化は Repository に寄せる（CLAUDE.md の設計原則）
-3. **フロントエンド**: React 画面 / ルーティング / コンポーネント / 状態管理 / API クライアント / フォームバリデーション
-   - 入力: `docs/design/screens/[scr-id]-*.md` と `docs/design/api/*.yaml`
-   - 表示は Presentational / Container に分け、API 呼び出しは `src/api/` に集約する
 
 各レイヤー完了ごとに最も狭い検証（コンパイル / 型チェック）を回してから次へ進む。
 
 #### 4.1. 各レイヤ完了時の中間サマリ書き出し（S7・コンテキスト溢れ対策・rules 改善）
 
-DB / BE / FE の各レイヤ完了時に、次レイヤが参照すべき確定情報を**中間サマリファイル**（own リポジトリ直下 `.skills-state/implement/impl-summary-$ARGUMENTS.md`・gitignore 対象）に追記する。長い実装でコンテキストが溢れても、次レイヤはこのファイルを Read して整合を取れる。記載項目は [references/layer-implementation-detail.md](references/layer-implementation-detail.md) の「4.1」を参照し、適用必須とする。
+DB / BE の各レイヤ完了時に、次レイヤが参照すべき確定情報を**中間サマリファイル**（own リポジトリ直下 `.skills-state/implement/impl-summary-$ARGUMENTS.md`・gitignore 対象）に追記する。長い実装でコンテキストが溢れても、次レイヤはこのファイルを Read して整合を取れる。記載項目は [references/layer-implementation-detail.md](references/layer-implementation-detail.md) の「4.1」を参照し、適用必須とする。
 
 ### 5. 品質ゲート（Pattern 2 並列ファンアウト）
 

@@ -34,6 +34,10 @@ argument-hint: <ISSUE-NUMBER>
    - Title / Body / 受け入れ条件 / 付与ラベル（`type:*`）/ Assignee
    - 関連する設計書ファイルパス（Body に記載されていれば参照）
    - 関連する画面 ID（SCR-XXX）と関連業務ルール（BR-XXX）
+
+#### 1.0. 対象リポジトリ種別ガード（マルチリポジトリ対応・必須）
+
+本 skill 系統（frontend-skills）は **`claude-poc-frontend` リポジトリ専用**であり、DB・バックエンドの実装は行わない。取得したラベルが `type:screen`（または FE 実装が主体の `type:interface`）以外（`type:api` / `type:table`）の場合は、**実装を開始せず中断**し「本 Issue は BE リポジトリ（`claude-poc-backend`）向けです。対象リポジトリを確認してください」と報告する。
 3. `gh issue view $ARGUMENTS --json comments` でコメント一覧を取得し、以下のルールで処理する
    - コメント本文を前後の空白・改行除去後に `@claude` と一致するコメントは**処理対象外**とする（起動トリガーのみで内容を持たない）
    - 残ったコメントを時系列順に読み、Issue 本文を補完する追加仕様・修正指示・背景情報を内部メモに追記する
@@ -41,15 +45,18 @@ argument-hint: <ISSUE-NUMBER>
 <!-- rules 改善（S5）: 依存 Issue クローズ確認ゲート -->
 #### 1.1. 依存 Issue クローズ確認ゲート（S5・必須）
 
-Issue 本文に `Depends on: #XX`（依存 Issue）の記載があれば、各依存 Issue の状態を確認する。DB→BE API→FE 画面 の順序事故（型定義・API 不在で画面が組めない等）を予防するためのハードゲート。
+Issue 本文に `Depends on: #XX`（依存 Issue）の記載があれば、各依存 Issue の状態を確認する。DB→BE API→FE 画面 の順序事故（型定義・API 不在で画面が組めない等）を予防するためのハードゲート。FE リポジトリの Issue は API/table Issue（`claude-poc-backend` 側）に依存することが多いため、**`Depends on:` は他リポジトリ Issue の場合 `<owner>/claude-poc-backend#<番号>` の完全修飾形式**で記載されている（`create-issues-from-design` の規約）。
 
 ```bash
-# Issue 本文から "Depends on: #NN" を抽出し、各依存 Issue の state を確認
+# Issue 本文から "Depends on:" を抽出し、各依存 Issue の state を確認
 gh issue view $ARGUMENTS --json body -q .body | grep -Eo 'Depends on:[^\n]*' || true
+# 同一リポジトリ内の依存（#NN のみ）
 gh issue view <依存Issue番号> --json number,state -q '.number,.state'
+# 他リポジトリの依存（owner/repo#NN 形式）は --repo は付けず完全修飾参照で確認する
+gh issue view <owner>/claude-poc-backend#<依存Issue番号> --json number,state -q '.number,.state'
 ```
 
-- 依存 Issue のいずれかが `OPEN`（未クローズ）の場合は **実装を開始せず中断**し、「依存 Issue #XX が未クローズのため着手不可。先に #XX をマージしてください」と報告する。
+- 依存 Issue のいずれかが `OPEN`（未クローズ）の場合は **実装を開始せず中断**し、「依存 Issue <参照> が未クローズのため着手不可。先にマージしてください」と報告する。
 - 依存記載が無い場合はそのまま次へ進む。
 
 <!-- rules 改善（S7）: Issue 規模の事前評価（コンテキスト溢れ対策） -->
@@ -105,20 +112,14 @@ git checkout -b feature/issue-$ARGUMENTS
 
 > 本プロジェクトは Agent Teams（experimental の teammate 機能）を使用しない。並列実行は Pattern 2（Parallel Fan-Out）で代替する。実装はこの単一セッション内で設計書に従って進める。
 
-実装前に既存コードを Glob / Grep で調査し、変更影響範囲を特定する。次の順序で進め、同じ Entity / migration に触れる作業を同時に走らせない（依存方向 DB → バックエンド → フロントエンドに沿う）。
+実装前に既存コードを Glob / Grep で調査し、変更影響範囲を特定する。本リポジトリ（FE）は **フロントエンド層のみ**を実装する。DB・バックエンド（API 実装）は `claude-poc-backend` リポジトリ側の別 Issue（`Depends on:` で参照）で完了済みであることが前提（1.1 の依存 Issue クローズ確認ゲートで担保）。
 
-1. **DB**: migration ファイル / Entity マッピング
-   - 入力: `docs/design/tables/[テーブル名].md` と `docs/design/DB定義.md`
-2. **バックエンド**: Controller / Service / Repository / Validation / 例外ハンドリング
-   - 入力: `docs/design/api/[リソース名].yaml`（共通スキーマは `docs/design/api/_common.yaml`）
-   - Controller は薄く保ち、業務ロジックは Service、永続化は Repository に寄せる（CLAUDE.md の設計原則）
-3. **フロントエンド**: React 画面 / ルーティング / コンポーネント / 状態管理 / API クライアント / フォームバリデーション
-   - 入力: `docs/design/screens/[scr-id]-*.md` と `docs/design/api/*.yaml`
+- **フロントエンド**: React 画面 / ルーティング / コンポーネント / 状態管理 / API クライアント / フォームバリデーション
+  - 入力: `docs/design/screens/[scr-id]-*.md` と `docs/design/api/*.yaml`（API はバックエンド側で実装済みの契約として参照するのみ。当該リポジトリでは実装しない）
+  - **型定義の事前確認と生成（必須）** / **API 呼び出しは `createApiClient` 使用（必須）**: 詳細手順は [references/api-client-guide.md](references/api-client-guide.md) を参照。
+  - 表示は Presentational / Container に分け、API 呼び出しは `src/features/*/services/` に集約する
 
-   - **3a. 型定義の事前確認と生成（必須）** / **3b. API 呼び出しは `createApiClient` 使用（必須）**: 詳細手順は [references/api-client-guide.md](references/api-client-guide.md) を参照。
-   - 表示は Presentational / Container に分け、API 呼び出しは `src/features/*/services/` に集約する
-
-各レイヤー完了ごとに最も狭い検証（コンパイル / 型チェック）を回してから次へ進む。
+最も狭い検証（コンパイル / 型チェック）を都度回しながら進める。
 
 <!-- rules 改善: references へ外出し -->
 画面 / フック / サービス（API クライアント）の各まとまり完了時に、次のまとまりが参照すべき確定情報を**中間サマリファイル**（own リポジトリ直下 `.skills-state/implement/impl-summary-$ARGUMENTS.md`・gitignore 対象）に追記する。長い実装でコンテキストが溢れても、後続はこのファイルを Read して整合を取れる。記載項目・追記コマンド例は [references/layer-implementation-detail.md](references/layer-implementation-detail.md) を参照し、適用必須とする（S7・コンテキスト溢れ対策）。

@@ -12,6 +12,8 @@ argument-hint: <ISSUE-NUMBER>
 > - 親アンブレラ（claude-poc-rules）から実行している場合（カレント直下に `claude-poc-docs/` が存在する場合）: docs 読み取りパスに `claude-poc-docs/` を前置する。
 > - CI（子リポジトリ単体のチェックアウト）で docs リポジトリが存在しない場合: workflow が追加チェックアウトした docs のパスを使う。それも無い場合は Issue 本文に埋め込まれた設計情報を入力とし、原本の参照が必要なら中断して人間に確認する。
 
+> **本 skill は generic（未分岐）版**。実運用の FE/BE 分離環境では `frontend-skills` / `backend-skills` 系統がそれぞれ **自リポジトリのレイヤーのみ**（FE: フロントエンドのみ／BE: DB+バックエンドのみ）に制限した版を持ち、対象外の `type:*` ラベルの Issue は実装せず中断する（対象リポジトリ種別ガード。`docs/process/実装スキル整合ギャップ.md` G-06/G-08 対応）。以下の「手順4」は generic 版（batch 等、DB→BE→FE が単一リポジトリで完結する場合）の記述であり、FE/BE 分離リポジトリでは該当系統の SKILL.md を使うこと。
+
 入力（Issue）と出力（コード・テスト・PR）がファイル経由のため `context: fork` で実行する。`/implement-loop` の **produce 段**を担う（review は `/review-implementation` が担当）。
 
 対象 Issue: $ARGUMENTS
