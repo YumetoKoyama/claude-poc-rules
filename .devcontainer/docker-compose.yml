@@ -58,8 +58,8 @@ services:
     ports:
       # Spring Boot
       - "8080:8080"
-      # React (Vite 既定)
-      - "5173:5173"
+      # Next.js（App Router）
+      - "3000:3000"
       # 必要に応じて Storybook 等を追加するときはここに足す
       - "6006:6006"
 

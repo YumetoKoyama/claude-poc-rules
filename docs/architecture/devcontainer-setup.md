@@ -87,7 +87,7 @@ Claude Code は **Bypass Permissions mode**（`permissions.defaultMode: "bypassP
 | サービス | コンテナ内 | ホスト | 用途 |
 | --- | --- | --- | --- |
 | Spring Boot | 8080 | 8080 | REST API |
-| Vite (React) | 5173 | 5173 | フロントエンド開発サーバ |
+| Next.js (App Router) | 3000 | 3000 | フロントエンド開発サーバ |
 | Storybook | 6006 | 6006 | コンポーネントカタログ（任意） |
 | PostgreSQL | 5432 | 5432 | DB クライアントからの接続 |
 

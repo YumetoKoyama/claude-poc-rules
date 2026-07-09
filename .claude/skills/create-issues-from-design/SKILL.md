@@ -12,6 +12,14 @@ argument-hint: [設計書のパス（省略時は docs/design/ 配下を全件�
 > - 親アンブレラ（claude-poc-rules）から実行している場合（カレント直下に `claude-poc-docs/` が存在する場合）: これらすべてのパスに `claude-poc-docs/` を前置して読み書きする。
 > - CI（子リポジトリ単体のチェックアウト）で docs リポジトリが存在しない場合: workflow が追加チェックアウトした docs のパスを使う。それも無い場合は Issue 本文に埋め込まれた設計情報を入力とし、原本の参照が必要なら中断して人間に確認する。
 
+> **Issue の起票先リポジトリ（マルチリポジトリ対応・必須）**: FE/BE は別リポジトリのため、本スキルは Issue の `type:*` ラベルに応じて **起票先リポジトリを出し分ける**（1 回の実行で複数リポジトリに Issue が作られる）。`gh` の全コマンドに `--repo <owner>/<repo>` を明示し、カレントの `origin` に依存しない。
+> | ラベル | 起票先 | 判定基準 |
+> | --- | --- | --- |
+> | `type:screen` | `claude-poc-frontend` | 画面設計（`docs/design/screens/`） |
+> | `type:api` / `type:table` | `claude-poc-backend` | API・テーブル設計（`docs/design/api/`・`docs/design/tables/`・`DB定義.md`） |
+> | `type:interface` | 実装主体で判定（バッチ IF・投入ジョブ等は `claude-poc-backend`、外部連携が FE 起点なら `claude-poc-frontend`）。判別できない場合は起票を中断しユーザーに確認する | `IF定義.md` の実装レイヤ記載 |
+> `<owner>` は `git remote get-url origin` から解決する（`claude-poc-docs`/`claude-poc-rules` と同一 Organization）。解決できない場合は起票を中断し、対象 Organization を人間に確認する。
+
 次の設計書入力をもとに GitHub Issue を起票する。
 
 設計書入力: $ARGUMENTS
@@ -22,13 +30,13 @@ argument-hint: [設計書のパス（省略時は docs/design/ 配下を全件�
 - **推奨**: 事前に `/tasks-from-design` を実行し `docs/design/tasks.md` を生成しておくと、Issue 粒度・並列優先度・ユーザーストーリー紐づけが明確になる。`tasks.md` が存在する場合は Step 1 でロードし、Issue の受け入れ条件・優先度・並列化ヒントに反映する。存在しない場合は設計書から直接 Issue を生成する（従来動作）
 - `gh` CLI がインストール・認証済みであること（`GH_TOKEN` 環境変数。`gh auth status` で確認）。Issue/PR/Project の操作は gh に一本化
 - PAT は classic（`repo` + `project`、Organization 所有 Project なら `read:org`）。`GH_TOKEN` は docker-compose が `GITHUB_PERSONAL_ACCESS_TOKEN` からマッピング済み
-- 対象リポジトリに `.github/ISSUE_TEMPLATE/` のテンプレート（screen / api / interface / table / bug）と必要なラベル（`type:screen` / `type:api` / `type:interface` / `type:table` / `type:bug`、`status:ready` 等）が用意されていること
+- 各起票先リポジトリ（`claude-poc-frontend` / `claude-poc-backend` 等）に `.github/ISSUE_TEMPLATE/` のテンプレート（screen / api / interface / table / bug）と必要なラベル（`type:screen` / `type:api` / `type:interface` / `type:table` / `type:bug`、`status:ready` 等）が用意されていること
 - UI を Claude Design で作成した場合は、`docs/design/ui-design/handoff/` が **Export 構造そのまま** で格納済みであること（画面単位の分割は不要）
 
 ## 成果物
 
-- 対象リポジトリに起票された GitHub Issue 一覧
-- Issue 番号・タイトル・URL・付与ラベルの Markdown テーブル
+- 各起票先リポジトリ（`claude-poc-frontend` / `claude-poc-backend` 等、`type:*` で出し分け）に起票された GitHub Issue 一覧
+- Issue 番号・起票先リポジトリ・タイトル・URL・付与ラベルの Markdown テーブル
 
 ## Issue 本文の @ メンション抑止（必須）
 
@@ -131,10 +139,11 @@ DB → BE API → FE 画面 の実装依存事故（Entity 不在でコンパイ
    - 画面 Issue は、自身が呼ぶ operationId を提供する API Issue に依存する（画面 md の「データ源（operationId）」欄から特定）。
    - 外部 IF Issue（`type:interface`）・バッチ Issue は、関係するテーブル／API Issue に依存する。
 2. 起票順序: **依存元（テーブル）から先に起票**し、起票で得た Issue 番号を控える。依存先（API・画面）の本文に `Depends on: #<依存元 Issue 番号>` を記載する（複数依存はカンマ区切り or 複数行）。
+   - **リポジトリをまたぐ依存（table/api は `claude-poc-backend`、screen は `claude-poc-frontend`）は、番号だけでは一意にならないため必ず `Depends on: <owner>/claude-poc-backend#<番号>` のように**完全修飾形式（`owner/repo#番号`）**で記載する**（GitHub のクロスリポジトリ参照構文。同一リポジトリ内依存は従来通り `#番号` のみで可）。
 3. 既存 Issue を更新する場合（冪等更新）も、`Depends on:` 行を最新の番号で維持する。
-4. 起票結果テーブル（後述）に「依存（Depends on）」列を追加し、依存グラフを人間が確認できるようにする。
+4. 起票結果テーブル（後述）に「依存（Depends on）」列を追加し、依存グラフを人間が確認できるようにする（クロスリポジトリ依存は起票先リポジトリ列と合わせて確認できるようにする）。
 
-> `implement-from-issue` の手順 1 には「`Depends on:` の各 Issue がクローズ済みか確認。未クローズなら中断」のゲートがある（依存元未マージの状態で下流実装を開始させない）。
+> `implement-from-issue` の手順 1 には「`Depends on:` の各 Issue がクローズ済みか確認。未クローズなら中断」のゲートがある（依存元未マージの状態で下流実装を開始させない）。クロスリポジトリ依存の場合は `gh issue view <owner>/<repo>#<番号> --json state` のように **`--repo` ではなく完全修飾 Issue 参照**で状態確認する。
 
 ### 3.6. 移行（MIG-XXX）の対応 Issue 整合チェック（工程#4）
 
@@ -150,7 +159,7 @@ grep -rnoE 'MIG-[0-9]{3}' ../claude-poc-docs/docs/requirements/移行要件.md d
 
 ### 4. 重複検出と起票
 
-1. 起票前に `gh issue list --search "[SCR-XXX] in:title" --state open --json number,title` でタイトルの近似検索を行う。**冪等性ルール**: 画面 Issue はタイトル先頭の `[SCR-XXX]` で既存 Issue を検索し、同一 `[SCR-XXX]` の open Issue が見つかった場合は **新規作成せず**、本文の差分を `gh issue edit <番号> --body-file <一時ファイル>` で更新する（または変更点を `gh issue comment` で追記する）。新規起票は `gh issue create --title "..." --body-file <一時ファイル> --label "type:<種別>" --label "status:ready"` で行う。API Issue も同様にリソース名で照合する。`[SCR-XXX]` 一致が無い場合のみ新規起票する。判断に迷う近似一致はユーザーに確認を取る。
+1. 起票前に、パス解決節の表で決定した起票先リポジトリを **すべての `gh` コマンドに `--repo <owner>/<repo>` で明示**する（例: `gh issue list --repo <owner>/claude-poc-frontend --search "[SCR-XXX] in:title" --state open --json number,title`）。**冪等性ルール**: 画面 Issue はタイトル先頭の `[SCR-XXX]` で既存 Issue を検索し、同一 `[SCR-XXX]` の open Issue が見つかった場合は **新規作成せず**、本文の差分を `gh issue edit --repo <owner>/<repo> <番号> --body-file <一時ファイル>` で更新する（または変更点を `gh issue comment --repo <owner>/<repo>` で追記する）。新規起票は `gh issue create --repo <owner>/<repo> --title "..." --body-file <一時ファイル> --label "type:<種別>" --label "status:ready"` で行う。API Issue も同様にリソース名で照合する。`[SCR-XXX]` 一致が無い場合のみ新規起票する。判断に迷う近似一致はユーザーに確認を取る。
 2. Issue 本文はすべて日本語で記述する。受け入れ条件はチェックボックス（`- [ ]`）で列挙する。
 3. 画面 Issue の受け入れ条件には少なくとも次を含める:
    - 設計 md の「画面概要」「入力」「出力・表示内容」「バリデーションメッセージ」が実装に反映されている
@@ -162,9 +171,9 @@ grep -rnoE 'MIG-[0-9]{3}' ../claude-poc-docs/docs/requirements/移行要件.md d
 
 起票結果をテーブル形式で報告し、後続の `/implement-from-issue <ISSUE-NUMBER>` を使って実装に進めることを明記する。
 
-| Issue # | タイトル | ラベル | URL | 依存（Depends on） | UI参照 |
-|--------|--------|------|-----|------|------|
-| #123 | [SCR-100] 配送依頼企業ダッシュボード | type:screen | https://... | #110, #115 | wf-screens-shipper.jsx :: Scr100DashA |
+| Issue # | リポジトリ | タイトル | ラベル | URL | 依存（Depends on） | UI参照 |
+|--------|--------|--------|------|-----|------|------|
+| #123 | claude-poc-frontend | [SCR-100] 配送依頼企業ダッシュボード | type:screen | https://... | owner/claude-poc-backend#110, owner/claude-poc-backend#115 | wf-screens-shipper.jsx :: Scr100DashA |
 
 ## 完了条件
 

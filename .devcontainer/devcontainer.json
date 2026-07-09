@@ -45,10 +45,10 @@
   "postCreateCommand": "bash .devcontainer/postCreate.sh",
 
   // ホスト→コンテナのポート転送。compose 側の ports と重複していても害はない。
-  "forwardPorts": [8080, 5173, 6006, 5432],
+  "forwardPorts": [8080, 3000, 6006, 5432],
   "portsAttributes": {
     "8080": { "label": "Spring Boot", "onAutoForward": "notify" },
-    "5173": { "label": "Vite (React)", "onAutoForward": "openPreview" },
+    "3000": { "label": "Next.js (App Router)", "onAutoForward": "openPreview" },
     "6006": { "label": "Storybook", "onAutoForward": "silent" },
     "5432": { "label": "PostgreSQL", "onAutoForward": "silent" }
   },

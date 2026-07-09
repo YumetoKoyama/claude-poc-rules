@@ -99,7 +99,7 @@ docker compose down -v
 | サービス | コンテナ内 | ホスト | 用途 |
 | --- | --- | --- | --- |
 | Spring Boot | 8080 | 8080 | REST API |
-| Vite (React) | 5173 | 5173 | フロントエンド開発サーバ |
+| Next.js (App Router) | 3000 | 3000 | フロントエンド開発サーバ |
 | Storybook | 6006 | 6006 | コンポーネントカタログ（任意） |
 | PostgreSQL | 5432 | 5432 | DB クライアントから接続したい場合 |
 
@@ -141,10 +141,13 @@ Spring Boot 用の環境変数 `SPRING_DATASOURCE_URL` / `SPRING_DATASOURCE_USER
 1. `/workspace` は bind-mount のためコンテナ内の `rm -rf` がホストに波及する
 2. compose の `.env` に書かれたシークレットはコンテナ環境変数として残るため、Claude セッションログや外部送信で漏れる可能性がある
 3. CI/CD ワークフローの改変（GitHub Actions など）は外部 CI に届くと隔離が無意味になる
-4. 同じネットワーク上の `db` サービスはコンテナから自由に叩けるため、勝手な DDL や DROP は走らせ
-## 7. Egress（送信側）アローリスト
+4. 同じネットワーク上の `db` サービスはコンテナから自由に叩けるため、勝手な DDL や DROP は走らせられる（コンテナ隔離はホスト OS を守るものであり、同一 compose 内のサービス間破壊は防がない）
 
-### 7.1 設計
+> ⚠️ 本節はセクション 6 が欠落した状態で発見された（git 履歴に旧版なし・復元不可）。項目 4 の文末は編集時に補完した。旧セクション 6 の内容は追跡不能なため、後続セクションを 7→6 に繰り上げて番号の欠番を解消した。
+
+## 6. Egress（送信側）アローリスト
+
+### 6.1 設計
 
 `docs/security/command-deny-policy.md` の方針では「コンテナ隔離 + ブラックリスト」で「外部送信」の制限はしない設計だったが、Claude Code が **Bypass Permissions mode**（`permissions.defaultMode: "bypassPermissions"`）で動くようになり、確認ダイアログが出なくなったため、egress を明示的に制限することにした。
 
@@ -157,7 +160,7 @@ Spring Boot 用の環境変数 `SPRING_DATASOURCE_URL` / `SPRING_DATASOURCE_USER
 5. vscode は uid 1000 で `CAP_NET_ADMIN` を持たないため、iptables 規則を変更できない
 6. Claude Code は `sudo`・`iptables` がいずれも `permissions.deny` で禁止されているため、ルール書き換えを試みても止まる
 
-### 7.2 許可ドメイン
+### 6.2 許可ドメイン
 
 `.devcontainer/init-firewall.sh` の `ALLOWED_DOMAINS` 配列で管理。既定値:
 
@@ -172,7 +175,7 @@ Spring Boot 用の環境変数 `SPRING_DATASOURCE_URL` / `SPRING_DATASOURCE_USER
 | Playwright | playwright.dev / cdn.playwright.dev / playwright.azureedge.net |
 | PyPI | pypi.org / files.pythonhosted.org |
 
-### 7.3 必要なケーパビリティ
+### 6.3 必要なケーパビリティ
 
 | Cap | 用途 |
 | --- | --- |
@@ -182,7 +185,7 @@ Spring Boot 用の環境変数 `SPRING_DATASOURCE_URL` / `SPRING_DATASOURCE_USER
 
 `cap_drop: ALL` で全 cap を落とした上で必要分だけ `cap_add` している。`no-new-privileges: true` も併用。
 
-### 7.4 編集と反映
+### 6.4 編集と反映
 
 許可ドメインを追加/削除したい場合:
 
@@ -191,7 +194,7 @@ Spring Boot 用の環境変数 `SPRING_DATASOURCE_URL` / `SPRING_DATASOURCE_USER
 
 スクリプトは bind-mount で読まれるため、image の再ビルドは不要（コンテナ再起動だけで反映）。
 
-### 7.5 デバッグ
+### 6.5 デバッグ
 
 通信が失敗するとき:
 
@@ -206,13 +209,13 @@ docker exec --user root claude-poc-app ipset list allowed-ipv4 | head -20
 
 新しいドメインへのアクセスが必要だと分かったら、上記 7.4 の手順で追加。
 
-### 7.6 既知の制約
+### 6.6 既知の制約
 
 - **IP ベースなので CDN の IP 変動に弱い**。GitHub 等は IP プールが広く、初回ビルド時に解決した IP が時間とともに変わると一部接続が失敗する。その場合は Rebuild Container で再解決
 - **IPv6 は完全 DROP**。allowlist 未対応のため IPv4 経由に強制
 - **DNS は許可必須**。名前解決のため UDP/TCP 53 は全開。理屈上は DNS exfiltration が可能だが、Claude Code の通常用途では発生しにくい
 - **手動 docker exec のデフォルトユーザーは root**。`docker compose exec app bash` は root で入る。Claude を root で動かさないために、必ず `--user vscode` を付けるか VS Code の Dev Container 経由で入ること
 
-### 7.7 緊急脱出
+### 6.7 緊急脱出
 
 allowlist が原因で開発が完全に止まったら、`.devcontainer/docker-compose.yml` の `entrypoint:` 行をコメントアウトしてコンテナを Rebuild すれば、firewall なしで起動する（一時的な退避策、本番運用では戻すこと）。

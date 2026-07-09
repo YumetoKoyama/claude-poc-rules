@@ -11,8 +11,7 @@ implement-from-issue（backend-skills 系統）本文から 2026-07-02 に PP-5 
 
 ## 4.1 各レイヤ完了時の中間サマリ書き出し（S7・コンテキスト溢れ対策）
 
-DB / BE / FE の各レイヤ完了時に、次レイヤが参照すべき確定情報を**中間サマリファイル**（own リポジトリ直下 `.skills-state/implement/impl-summary-$ARGUMENTS.md`・gitignore 対象）に追記する。長い実装でコンテキストが溢れても、次レイヤはこのファイルを Read して整合を取れる。
+DB / BE の各レイヤ完了時に、次レイヤが参照すべき確定情報を**中間サマリファイル**（own リポジトリ直下 `.skills-state/implement/impl-summary-$ARGUMENTS.md`・gitignore 対象）に追記する。長い実装でコンテキストが溢れても、次レイヤはこのファイルを Read して整合を取れる。FE リポジトリ側の実装は本リポジトリの対象外だが、API パス・operationId・DTO のフィールド名は FE 側 Issue が `Depends on:` 経由で参照する契約情報になるため、本サマリまたは PR 本文に明記する。
 
 - DB 完了時: 作成した **Entity 名・テーブル名・主キー・`version` 列の有無・一意制約**
 - BE 完了時: 実装した **API パス・operationId・Request/Response DTO 名・主要フィールド名**
-- FE 完了時: 作成した **画面コンポーネント名・呼び出す operationId・利用するレスポンスフィールド**
