@@ -1,13 +1,15 @@
 ---
 name: implement-loop
 description: TDD ファーストで「テスト設計 → テストコード生成 → 実装 → review → fix」の反復ループを最大 max_iterations 回まで回すオーケストレータ。テストを実装より先に作成し、BLOCK 件数が 0 になるか上限到達まで自動で繰り返す。
-argument-hint: <GitHub Issue 番号>
+argument-hint: [<repo: frontend|backend|batch|e2e>] <GitHub Issue 番号>
 allowed-tools: Bash, Read, Skill
 ---
 
 # implement loop オーケストレータ（TDD ファースト）
 
 入力: $ARGUMENTS
+
+> **親アンブレラからの複数リポジトリ対応（第1引数でリポジトリ指定）**: 対象子リポジトリのディレクトリ内で実行している場合（CI 実行時を含む）は従来どおり `<Issue番号>` の1引数で呼ぶ。親アンブレラ（claude-poc-rules）直下から複数リポジトリをまたいで呼びたい場合は `<repo> <Issue番号>`（例: `frontend 123`）の2引数で呼ぶ。`repo` は `frontend` / `backend` / `batch` / `e2e` のいずれか。判定・ディスパッチ手順は下記「現在の状態」節を参照。
 
 このスキルは [docs/architecture/skill-orchestration.md](../../../docs/architecture/skill-orchestration.md) の Pattern 4（Iterative Loop）に従う **implement phase 専用** オーケストレータです。
 
@@ -34,8 +36,12 @@ allowed-tools: Bash, Read, Skill
 > **state の出力先（自動・所有リポ集約。手動設定不要）**: `.skills-state/` の出力先・参照先は 各スクリプトが phase から決定論的に解決する（`_common/scripts/_state-root.sh`）。requirements/design は所有リポ `claude-poc-docs` に、implement/integration は実行中の子リポに集約される。起動 CWD に依存しないため、ここで `STATE_ROOT` を手動設定する必要はない（特定の場所へ明示的に上書きしたい場合のみ `export STATE_ROOT=...`）。
 
 
-!`bash ${CLAUDE_SKILL_DIR}/../_common/scripts/init-state.sh implement "$ARGUMENTS"`
+!`bash ${CLAUDE_SKILL_DIR}/../_common/scripts/init-state-with-dispatch.sh implement $ARGUMENTS`
 > **反復回数の正典**: 上限は `_common/scripts/init-state.sh` の `MAX_ITER` で一元管理（既定値はスクリプトを参照）。loop スキルには回数をハードコードしない。
+
+> **ディスパッチ判定（必須・最初に必ず確認）**: 上記コマンドの出力1行目 `DISPATCH_REPO_DIR=<dir または 空>` を確認する。
+> - **`<dir>` が入っている場合**（親アンブレラから `<repo> <Issue番号>` の2引数で呼ばれ、対象リポジトリのディレクトリが特定できた）: ここで**必ず** Bash ツールで実際に `cd <dir>` を実行する（このスクリプト内部の cd は本コマンドのサブシェルにしか効かず、以降の Claude 自身の操作には引き継がれないため）。cd 後、Skill ツールで `/implement-loop <Issue番号>`（repo を除いた残りの引数）を呼び直し、**本ファイルのこれ以降の手順は実行しない**（呼び直した先で state 初期化からやり直される）。
+> - **空の場合**: 現在のカレントディレクトリが対象リポジトリであるとみなし（CI 実行時・子リポジトリ内で直接呼んだ場合はこちら）、そのまま以下の手順を続ける。
 
 
 ## 手順
