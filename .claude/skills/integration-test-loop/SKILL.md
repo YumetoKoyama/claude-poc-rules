@@ -1,11 +1,13 @@
 ---
 name: integration-test-loop
 description: 「integration-test phase の produce → review → fix → review」の反復ループを最大 max_iterations 回まで回すオーケストレータ。結合テストを設計・実施し、失敗原因が実装側なら fix、設計側なら ESCALATE する。BLOCK（失敗）件数が 0 になるか上限到達まで自動で繰り返す。
-argument-hint: <フィーチャ名 または 結合テスト Issue 番号>
+argument-hint: [<repo: frontend|backend|batch|e2e>] <フィーチャ名 または 結合テスト Issue 番号>
 allowed-tools: Bash, Read, Skill
 ---
 
 # integration-test loop オーケストレータ
+
+> **親アンブレラからの複数リポジトリ対応（第1引数でリポジトリ指定）**: 対象子リポジトリのディレクトリ内で実行している場合は従来どおり `<フィーチャ名/Issue番号>` の1引数で呼ぶ。親アンブレラ（claude-poc-rules）直下から呼びたい場合は `<repo> <フィーチャ名/Issue番号>`（例: `backend 123`）の2引数で呼ぶ。判定・ディスパッチ手順は下記「現在の状態」節を参照。
 
 > **パス解決（マルチリポジトリ対応）**: 本スキル内の `docs/requirements/`・`docs/design/`・`docs/test/` は、読み取り入力（要件・設計）は **docs リポジトリ（claude-poc-docs）ルート相対**、書き込み出力（結合テストマトリクス・RTM・結合テストコード）は **own リポジトリ（実装リポ）のワーキングツリー直下**。
 > - docs をカレントで実行ならそのまま、親アンブレラからなら docs 読み取りパスに `claude-poc-docs/` を前置、CI で workflow が追加チェックアウトした docs があればそのパスを使う。
@@ -31,8 +33,12 @@ allowed-tools: Bash, Read, Skill
 > **state の出力先（自動・所有リポ集約。手動設定不要）**: `.skills-state/` の出力先・参照先は 各スクリプトが phase から決定論的に解決する（`_common/scripts/_state-root.sh`）。requirements/design は所有リポ `claude-poc-docs` に、implement/integration は実行中の子リポに集約される。起動 CWD に依存しないため、ここで `STATE_ROOT` を手動設定する必要はない（特定の場所へ明示的に上書きしたい場合のみ `export STATE_ROOT=...`）。
 
 
-!`bash ${CLAUDE_SKILL_DIR}/../_common/scripts/init-state.sh integration "$ARGUMENTS"`
+!`bash ${CLAUDE_SKILL_DIR}/../_common/scripts/init-state-with-dispatch.sh integration $ARGUMENTS`
 > **反復回数の正典**: 上限は `_common/scripts/init-state.sh` の `MAX_ITER` で一元管理（既定値はスクリプトを参照）。loop スキルには回数をハードコードしない。
+
+> **ディスパッチ判定（必須・最初に必ず確認）**: 上記コマンドの出力1行目 `DISPATCH_REPO_DIR=<dir または 空>` を確認する。
+> - **`<dir>` が入っている場合**: Bash ツールで実際に `cd <dir>` を実行し、Skill ツールで `/integration-test-loop <フィーチャ名/Issue番号>`（repo を除いた残りの引数）を呼び直す。**本ファイルのこれ以降の手順は実行しない。**
+> - **空の場合**: 現在のカレントディレクトリが対象リポジトリであるとみなし、そのまま以下の手順を続ける。
 
 
 > 注: `integration` phase の state 初期化・iteration 境界・終了条件は `_common/scripts/init-state.sh` / `advance-state.sh` / `record-review.sh` が担保する（`integration` phase 対応は提供済み。設計側カテゴリ `integration_design` の BLOCK は `record-review.sh` が iteration に関わらず即 escalate する＝環境変数 `ESCALATE_CATEGORIES` で変更可）。state は必ずスクリプト経由で生成・更新し、手編集しない。
