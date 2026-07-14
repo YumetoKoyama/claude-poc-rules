@@ -36,7 +36,12 @@ allowed-tools: Bash, Read, Skill
 > **state の出力先（自動・所有リポ集約。手動設定不要）**: `.skills-state/` の出力先・参照先は 各スクリプトが phase から決定論的に解決する（`_common/scripts/_state-root.sh`）。requirements/design は所有リポ `claude-poc-docs` に、implement/integration は実行中の子リポに集約される。起動 CWD に依存しないため、ここで `STATE_ROOT` を手動設定する必要はない（特定の場所へ明示的に上書きしたい場合のみ `export STATE_ROOT=...`）。
 
 
-!`bash ${CLAUDE_SKILL_DIR}/../_common/scripts/init-state-with-dispatch.sh implement $ARGUMENTS`
+**state 初期化（必ず Bash ツールで実行する。`!`command`` 形式のインライン実行は使わない — Windows 環境で承認不能な別経路の許可チェックにかかり停止するため）**:
+
+```bash
+bash ${CLAUDE_SKILL_DIR}/../_common/scripts/init-state-with-dispatch.sh implement $ARGUMENTS
+```
+
 > **反復回数の正典**: 上限は `_common/scripts/init-state.sh` の `MAX_ITER` で一元管理（既定値はスクリプトを参照）。loop スキルには回数をハードコードしない。
 
 > **ディスパッチ判定（必須・最初に必ず確認）**: 上記コマンドの出力1行目 `DISPATCH_REPO_DIR=<dir または 空>` を確認する。

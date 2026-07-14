@@ -4,6 +4,14 @@
   },
   "permissions": {
     "defaultMode": "bypassPermissions",
+    "allow": [
+      "Bash(bash **/_common/scripts/init-state-with-dispatch.sh *)",
+      "Bash(bash **/_common/scripts/init-state.sh *)",
+      "Bash(bash c:/Users/tdcsoft/claude-poc-rules/.claude/skills/implement-loop/../_common/scripts/init-state-with-dispatch.sh *)",
+      "Bash(bash c:/Users/tdcsoft/claude-poc-rules/.claude/skills/integration-test-loop/../_common/scripts/init-state-with-dispatch.sh *)",
+      "Bash(bash c:/Users/tdcsoft/claude-poc-rules/.claude/skills/design-loop/../_common/scripts/init-state.sh *)",
+      "Bash(bash c:/Users/tdcsoft/claude-poc-rules/.claude/skills/requirements-loop/../_common/scripts/init-state.sh *)"
+    ],
     "deny": [
       "Bash(rm -rf /)",
       "Bash(rm -rf /*)",
